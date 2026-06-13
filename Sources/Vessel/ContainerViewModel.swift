@@ -78,6 +78,7 @@ public class ContainerViewModel {
     public var shellOutputPipes: [String: Pipe] = [:]
     public var publishedStats: [String: StatsModel] = [:]
     private var shellProcesses: [String: LinuxProcess] = [:]
+    private var activeStatsSubscriptions: Set<String> = []
     
     public var errorMessage: String? = nil
     
@@ -202,6 +203,14 @@ public class ContainerViewModel {
     
     @MainActor
     public func subscribeToStats(for id: String) async {
+        // ⚡ Bolt Optimization: Prevent redundant stats polling processes.
+        // SwiftUI's `onAppear` or multiple views might trigger this repeatedly.
+        // This Set prevents spawning multiple background `sh` loop processes
+        // inside the VM for the same container, saving significant CPU/Memory overhead.
+        if activeStatsSubscriptions.contains(id) { return }
+        activeStatsSubscriptions.insert(id)
+        defer { activeStatsSubscriptions.remove(id) }
+
         do {
             let stream = try await daemon.startStatsStream(containerId: id)
             for await model in stream {
