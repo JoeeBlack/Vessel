@@ -21,3 +21,7 @@
 **Vulnerability:** Weak file writing options and default permissions for daemon log files (`daemon.log`).
 **Learning:** Writing sensitive logs using `data.write(to:)` without options leaves the file vulnerable to race conditions and sets default permissions, exposing potentially sensitive daemon metadata to unauthorized reads.
 **Prevention:** Always use `options: [.atomic]` when writing to log files to prevent partial reads or race conditions. Follow up with explicit POSIX permission restrictions (e.g., `0o600`) using `FileManager.default.setAttributes`.
+## 2024-05-24 - YAML Alias Vulnerability (Billion Laughs Attack) in Yams
+**Vulnerability:** The project uses `Yams.load(yaml:)` which does not natively limit the expansion of YAML aliases (`*alias`). An attacker could supply a maliciously crafted YAML file with nested aliases (a "Billion Laughs" attack), causing the parser to exponentially expand the data. This leads to memory exhaustion and Denial of Service (DoS).
+**Learning:** External libraries like `Yams` may not provide built-in safeguards against entity expansion attacks out-of-the-box in the specific version or API (`load()`) being used.
+**Prevention:** Always validate and sanitize user-provided configuration files before passing them to the parser. Specifically, enforce a strict file size limit and restrict the number of aliases allowed in the file to prevent resource exhaustion.
