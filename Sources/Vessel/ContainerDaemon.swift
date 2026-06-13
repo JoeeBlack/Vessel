@@ -188,7 +188,7 @@ public class ContainerDaemon {
             if let interface = try? network.createInterface(podId) {
                 config.interfaces = [interface]
                 if let gateway = interface.ipv4Gateway {
-                    config.dns = .init(nameservers: [gateway.description, "8.8.8.8"])
+                    config.dns = .init(nameservers: [gateway.description])
                 }
             }
         }
@@ -327,7 +327,7 @@ public class ContainerDaemon {
         ) { config in
             config.cpus = cpus
             config.memoryInBytes = UInt64(memoryGB * 1024 * 1024 * 1024)
-            config.dns = Containerization.DNS(nameservers: ["8.8.8.8", "1.1.1.1"])
+            config.dns = Containerization.DNS(nameservers: ["192.168.105.1"])
             
             var envs: [String] = []
             for (key, value) in envVars {
@@ -439,7 +439,7 @@ public class ContainerDaemon {
                     config.memoryInBytes = UInt64(vessel.memoryGB * 1024 * 1024 * 1024)
                     let baseImageName = vessel.image.split(separator: ":").first.map(String.init) ?? "vessel"
                     config.hostname = baseImageName
-                    config.dns = Containerization.DNS(nameservers: ["8.8.8.8", "1.1.1.1"])
+                    config.dns = Containerization.DNS(nameservers: ["192.168.105.1"])
                     var envs: [String] = []
                     for (key, value) in vessel.envVars { envs.append("\(key)=\(value)") }
                     config.process.environmentVariables = envs
