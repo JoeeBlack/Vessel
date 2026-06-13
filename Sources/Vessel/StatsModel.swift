@@ -30,19 +30,19 @@ public class StatsParser {
     public init() {}
     
     public func parse(output: String, currentModel: inout StatsModel) {
-        let sections = output.components(separatedBy: "---MEM---")
-        guard sections.count == 2 else { return }
+        // ⚡ Bolt Optimization: Use range(of:) and Substring slicing instead of components(separatedBy:)
+        // This avoids allocating intermediate Arrays and Strings in high-frequency parsing paths.
+        guard let memRange = output.range(of: "---MEM---") else { return }
+        let statSection = output[..<memRange.lowerBound]
+        let remainingAfterMem = output[memRange.upperBound...]
         
-        let statSection = sections[0]
-        let memAndLoad = sections[1].components(separatedBy: "---LOAD---")
-        guard memAndLoad.count == 2 else { return }
+        guard let loadRange = remainingAfterMem.range(of: "---LOAD---") else { return }
+        let memSection = remainingAfterMem[..<loadRange.lowerBound]
+        let remainingAfterLoad = remainingAfterMem[loadRange.upperBound...]
         
-        let memSection = memAndLoad[0]
-        let loadAndUptime = memAndLoad[1].components(separatedBy: "---UPTIME---")
-        guard loadAndUptime.count == 2 else { return }
-        
-        let loadSection = loadAndUptime[0]
-        let uptimeSection = loadAndUptime[1]
+        guard let uptimeRange = remainingAfterLoad.range(of: "---UPTIME---") else { return }
+        let loadSection = remainingAfterLoad[..<uptimeRange.lowerBound]
+        let uptimeSection = remainingAfterLoad[uptimeRange.upperBound...]
         
         // Parse /proc/stat
         var cpuUsages: [Double] = []
