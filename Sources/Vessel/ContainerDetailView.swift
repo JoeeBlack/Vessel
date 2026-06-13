@@ -11,6 +11,7 @@ struct ContainerDetailView: View {
     
     var body: some View {
         let isRunning = container.status == .running
+        let isLoading = viewModel.loadingContainers.contains(container.id)
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
                 
@@ -47,10 +48,17 @@ struct ContainerDetailView: View {
                             }
                         }) {
                             HStack {
-                                Image(systemName: isRunning ? "stop.circle" : "play.circle")
-                                    .foregroundColor(isRunning ? .red : .green)
-                                Text(isRunning ? "Stop" : "Start")
-                                    .foregroundColor(isRunning ? .red : .green)
+                                if isLoading {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text(isRunning ? "Stopping..." : "Starting...")
+                                        .foregroundColor(.gray)
+                                } else {
+                                    Image(systemName: isRunning ? "stop.circle" : "play.circle")
+                                        .foregroundColor(isRunning ? .red : .green)
+                                    Text(isRunning ? "Stop" : "Start")
+                                        .foregroundColor(isRunning ? .red : .green)
+                                }
                             }
                             .font(.system(size: 13, weight: .bold))
                             .padding(.horizontal, 16)
@@ -59,6 +67,7 @@ struct ContainerDetailView: View {
                             .background(Color.clear)
                         }
                         .buttonStyle(.plain)
+                        .disabled(isLoading)
                         
                         Button(action: {
                             Task {
@@ -79,7 +88,7 @@ struct ContainerDetailView: View {
                             .background(Color.clear)
                         }
                         .buttonStyle(.plain)
-                        .disabled(!isRunning)
+                        .disabled(!isRunning || isLoading)
                         .opacity(isRunning ? 1.0 : 0.5)
                         
                         Button(action: {
@@ -179,7 +188,7 @@ struct ContainerDetailView: View {
         let stats = viewModel.publishedStats[container.id] ?? StatsModel()
         
         VStack(alignment: .leading, spacing: 16) {
-            Text("Resource Utilization (htop)")
+            Text("Resource Utilization")
                 .font(.system(size: 16, weight: .bold, design: .serif))
                 .foregroundColor(AppTheme.textPrimary)
             
