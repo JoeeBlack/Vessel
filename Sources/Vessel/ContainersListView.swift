@@ -1,20 +1,35 @@
 import SwiftUI
 
 struct ContainersListView: View {
-    let containers: [VesselContainer]
+    let workloads: [VesselWorkload]
     let loadingContainers: Set<String>
     var viewModel: ContainerViewModel
-    var onSelect: (VesselContainer) -> Void
-    var onStart: (VesselContainer) -> Void
-    var onStop: (VesselContainer) -> Void
+    var onSelect: (String) -> Void
+    var onStart: (String) -> Void
+    var onStop: (String) -> Void
     var onNewContainer: () -> Void
     
     let columns = [
         GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 24)
     ]
     
-    var runningCount: Int { containers.filter { $0.status == .running }.count }
-    var stoppedCount: Int { containers.filter { $0.status == .stopped }.count }
+    var runningCount: Int { 
+        workloads.filter { 
+            switch $0 {
+            case .container(let c): return c.status == .running
+            case .pod(let p): return p.status == .running
+            }
+        }.count 
+    }
+    
+    var stoppedCount: Int { 
+        workloads.filter { 
+            switch $0 {
+            case .container(let c): return c.status == .stopped
+            case .pod(let p): return p.status == .stopped
+            }
+        }.count 
+    }
     
     var body: some View {
         ScrollView {
@@ -54,18 +69,34 @@ struct ContainersListView: View {
                 
                 // Cards Grid
                 LazyVGrid(columns: columns, spacing: 24) {
-                    ForEach(containers) { container in
-                        ContainerCardView(
-                            container: container,
-                            isLoading: loadingContainers.contains(container.id),
-                            viewModel: viewModel,
-                            onStart: { onStart(container) },
-                            onStop: { onStop(container) }
-                        )
-                        .onTapGesture {
-                            onSelect(container)
+                    ForEach(workloads) { workload in
+                        switch workload {
+                        case .container(let container):
+                            ContainerCardView(
+                                container: container,
+                                isLoading: loadingContainers.contains(container.id),
+                                viewModel: viewModel,
+                                onStart: { onStart(container.id) },
+                                onStop: { onStop(container.id) }
+                            )
+                            .onTapGesture {
+                                onSelect(container.id)
+                            }
+                            .cursor(.pointingHand)
+                            
+                        case .pod(let pod):
+                            PodCardView(
+                                pod: pod,
+                                isLoading: loadingContainers.contains(pod.id),
+                                viewModel: viewModel,
+                                onStart: { onStart(pod.id) },
+                                onStop: { onStop(pod.id) }
+                            )
+                            .onTapGesture {
+                                onSelect(pod.id)
+                            }
+                            .cursor(.pointingHand)
                         }
-                        .cursor(.pointingHand)
                     }
                     
                     // Deploy Container Placeholder
@@ -116,7 +147,6 @@ struct ContainerCardView: View {
     let onStop: () -> Void
     
     @State private var isAnimatingOverlay: Bool = false
-    @State private var isShellExpanded = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -251,53 +281,6 @@ struct ContainerCardView: View {
                     .buttonStyle(.plain)
                     .disabled(isLoading)
                 }
-                
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        isShellExpanded.toggle()
-                        if isShellExpanded {
-                            Task {
-                                await viewModel.startShell(for: container.id)
-                            }
-                        }
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: "terminal")
-                            .font(.system(size: 12))
-                        Text("Shell")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(isShellExpanded ? AppTheme.accentBlue.opacity(0.1) : AppTheme.mainBackgroundTop)
-                    .foregroundColor(isShellExpanded ? AppTheme.accentBlue : AppTheme.textPrimary)
-                    .cornerRadius(8)
-                }
-                .buttonStyle(.plain)
-            }
-            
-            if isShellExpanded {
-                Divider()
-                    .background(AppTheme.cardBorder)
-                    .padding(.vertical, 4)
-                
-                VStack(alignment: .leading, spacing: 0) {
-                    if let inputPipe = viewModel.shellInputPipes[container.id],
-                       let outputPipe = viewModel.shellOutputPipes[container.id] {
-                        VMTerminalView(
-                            inputHandle: inputPipe.fileHandleForWriting,
-                            outputHandle: outputPipe.fileHandleForReading
-                        )
-                        .frame(height: 200)
-                    } else {
-                        ProgressView("Connecting...")
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .frame(height: 200)
-                    }
-                }
-                .padding(12)
-                .background(AppTheme.darkTerminalBackground)
-                .cornerRadius(8)
             }
         }
         .padding(20)

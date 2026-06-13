@@ -289,11 +289,11 @@ struct ContainerDetailView: View {
                 .foregroundColor(AppTheme.textPrimary)
             
             VStack(spacing: 16) {
-                detailRow(label: "IP Address", value: container.ipAddress ?? "172.18.0.4")
+                detailRow(label: "IP Address", value: container.ipAddress ?? "-")
                 Divider().background(AppTheme.cardBorder)
-                detailRow(label: "Ports", value: container.ports ?? "80:8080/tcp")
+                detailRow(label: "Ports", value: container.ports ?? "-")
                 Divider().background(AppTheme.cardBorder)
-                detailRow(label: "Gateway", value: "172.18.0.1")
+                detailRow(label: "Gateway", value: "-")
             }
         }
         .padding(24)
@@ -310,23 +310,11 @@ struct ContainerDetailView: View {
                 .foregroundColor(AppTheme.textPrimary)
             
             VStack(spacing: 16) {
-                detailRow(label: "Created", value: "2 hours ago", isMonospaced: false)
+                detailRow(label: "Created", value: "-", isMonospaced: false)
                 Divider().background(AppTheme.cardBorder)
-                detailRow(label: "Uptime", value: container.uptime ?? "1h 45m", isMonospaced: false)
+                detailRow(label: "Uptime", value: formattedUptime(), isMonospaced: false)
             }
-            
-            Button(action: {}) {
-                HStack {
-                    Image(systemName: "info.circle")
-                    Text("View Env Vars")
-                }
-                .font(.system(size: 12))
-                .foregroundColor(AppTheme.accentBlue)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 8)
-            }
-            .buttonStyle(.plain)
-            .cursor(.pointingHand)
+
         }
         .padding(24)
         .background(AppTheme.cardBackground)
@@ -344,5 +332,18 @@ struct ContainerDetailView: View {
                 .font(isMonospaced ? .system(size: 13, design: .monospaced) : .system(size: 13))
                 .foregroundColor(AppTheme.textPrimary)
         }
+    }
+    
+    private func formattedUptime() -> String {
+        guard container.status == .running else { return container.uptime ?? "-" }
+        guard let stats = viewModel.publishedStats[container.id], stats.uptimeSeconds > 0 else { return "Starting..." }
+        let totalSeconds = Int(stats.uptimeSeconds)
+        let h = totalSeconds / 3600
+        let m = (totalSeconds % 3600) / 60
+        let s = totalSeconds % 60
+        
+        if h > 0 { return "\(h)h \(m)m" }
+        if m > 0 { return "\(m)m \(s)s" }
+        return "\(s)s"
     }
 }

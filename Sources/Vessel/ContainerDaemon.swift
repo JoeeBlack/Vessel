@@ -2,6 +2,9 @@ import Foundation
 import Containerization
 import ContainerizationExtras
 import ContainerizationOS
+import ContainerizationEXT4
+import ContainerizationOCI
+import ContainerizationError
 
 public struct SimpleNATNetwork: Network {
     private var nextIP: UInt32 = 2
@@ -43,6 +46,11 @@ public class ContainerDaemon {
         var logStream: AsyncStream<String>?
     }
     
+    private struct ActivePod {
+        let pod: VesselPod
+        var linuxPod: LinuxPod?
+    }
+    
     private final class LogWriter: Writer {
         let prefix: String
         let continuation: AsyncStream<String>.Continuation
@@ -70,6 +78,7 @@ public class ContainerDaemon {
     }
     
     private var activeContainers: [String: ActiveContainer] = [:]
+    private var activePods: [String: ActivePod] = [:]
     
     private let containersFilePath: URL = {
         let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel")
@@ -77,8 +86,15 @@ public class ContainerDaemon {
         return dir.appendingPathComponent("containers.json")
     }()
     
+    private let podsFilePath: URL = {
+        let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("pods.json")
+    }()
+    
     public init() {
         loadContainers()
+        loadPods()
     }
     
     private func saveContainers() {
@@ -100,8 +116,140 @@ public class ContainerDaemon {
         }
     }
     
+    private func savePods() {
+        let vesselPods = activePods.values.map { $0.pod }
+        if let data = try? JSONEncoder().encode(vesselPods) {
+            try? data.write(to: podsFilePath)
+        }
+    }
+    
+    private func loadPods() {
+        guard let data = try? Data(contentsOf: podsFilePath),
+              let vesselPods = try? JSONDecoder().decode([VesselPod].self, from: data) else {
+            return
+        }
+        for var p in vesselPods {
+            p = VesselPod(id: p.id, name: p.name, status: .stopped, containers: p.containers, cpus: p.cpus, memoryGB: p.memoryGB)
+            activePods[p.id] = ActivePod(pod: p, linuxPod: nil)
+        }
+    }
+    
     public func fetchActiveContainers() async throws -> [VesselContainer] {
         return activeContainers.values.map { $0.vessel }
+    }
+    
+    public func fetchActiveWorkloads() async throws -> [VesselWorkload] {
+        let containers = activeContainers.values.map { VesselWorkload.container($0.vessel) }
+        let pods = activePods.values.map { VesselWorkload.pod($0.pod) }
+        return containers + pods
+    }
+    
+    public func startPod(yamlPath: URL) async throws {
+        // Read yaml
+        let yamlString = try String(contentsOf: yamlPath, encoding: .utf8)
+        let projectName = yamlPath.deletingPathExtension().lastPathComponent
+        let project = try ComposeParser.parse(yaml: yamlString, projectName: projectName)
+        
+        let store = ImageStore.default
+        let initPath = store.path.appendingPathComponent("initfs.ext4")
+        let initImage = try await store.getInitImage(reference: "ghcr.io/apple/containerization/vminit:0.33.4")
+        
+        let initfs = try await {
+            do {
+                return try await initImage.initBlock(at: initPath, for: .linuxArm)
+            } catch let err as ContainerizationError {
+                guard err.code == .exists else { throw err }
+                return Containerization.Mount.block(
+                    format: "ext4",
+                    source: initPath.absolutePath(),
+                    destination: "/",
+                    options: ["ro"]
+                )
+            }
+        }()
+        
+        let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
+        var testKernel = Kernel(path: kernelPath, platform: .linuxArm)
+        
+        let vmm = VZVirtualMachineManager(
+            kernel: testKernel,
+            initialFilesystem: initfs,
+            rosetta: true,
+            nestedVirtualization: false
+        )
+        
+        let podId = UUID().uuidString
+        let pod = try LinuxPod(podId, vmm: vmm) { config in
+            config.cpus = 4
+            config.memoryInBytes = 4.gib() // For the whole pod
+            
+            // Shared network
+            var network = SimpleNATNetwork()
+            if let interface = try? network.createInterface(podId) {
+                config.interfaces = [interface]
+                if let gateway = interface.ipv4Gateway {
+                    config.dns = .init(nameservers: [gateway.description, "8.8.8.8"])
+                }
+            }
+        }
+        
+        var containers: [VesselContainer] = []
+        let platform = Platform(arch: "arm64", os: "linux", variant: "v8")
+        let unpacker = EXT4Unpacker(blockSizeInBytes: 8.gib())
+        
+        for service in project.services {
+            let normalizedRef = normalize(reference: service.image)
+            let image = try await store.get(reference: normalizedRef, pull: true)
+            let fsPath = store.path.appendingPathComponent("containers").appendingPathComponent("\(podId)-\(service.name)-rootfs.ext4")
+            
+            let rootfs = try await unpacker.unpack(image, for: platform, at: fsPath, progress: nil)
+            
+            let imageConfig = try await image.config(for: .current).config
+            
+            try await pod.addContainer(service.name, rootfs: rootfs) { config in
+                if let imageConfig {
+                    config.process = LinuxProcessConfiguration(from: imageConfig)
+                }
+                var envs: [String] = []
+                for (key, value) in service.environment {
+                    envs.append("\(key)=\(value)")
+                }
+                config.process.environmentVariables.append(contentsOf: envs)
+            }
+            
+            containers.append(VesselContainer(
+                id: "\(podId)-\(service.name)",
+                name: service.name,
+                subtitle: "Compose Service",
+                image: service.image,
+                status: .starting,
+                ipAddress: "127.0.0.1",
+                rosettaEnabled: true,
+                networkingEnabled: true,
+                rootfsSize: "8GB",
+                cpus: 1,
+                memoryGB: 1,
+                envVars: service.environment,
+                volumes: []
+            ))
+        }
+        
+        try await pod.create()
+        for service in project.services {
+            try await pod.startContainer(service.name)
+        }
+        
+        let vesselPod = VesselPod(
+            id: podId,
+            name: projectName,
+            status: .running,
+            containers: containers.map { VesselContainer(id: $0.id, name: $0.name, subtitle: $0.subtitle, image: $0.image, status: .running, ipAddress: $0.ipAddress, rosettaEnabled: $0.rosettaEnabled, networkingEnabled: $0.networkingEnabled, rootfsSize: $0.rootfsSize, cpus: $0.cpus, memoryGB: $0.memoryGB, envVars: $0.envVars, volumes: $0.volumes) },
+            cpus: 4,
+            memoryGB: 4.0
+        )
+        
+        activePods[podId] = ActivePod(pod: vesselPod, linuxPod: pod)
+        savePods()
     }
     
     private func normalize(reference: String) -> String {
@@ -179,6 +327,7 @@ public class ContainerDaemon {
         ) { config in
             config.cpus = cpus
             config.memoryInBytes = UInt64(memoryGB * 1024 * 1024 * 1024)
+            config.dns = Containerization.DNS(nameservers: ["8.8.8.8", "1.1.1.1"])
             
             var envs: [String] = []
             for (key, value) in envVars {
@@ -290,7 +439,7 @@ public class ContainerDaemon {
                     config.memoryInBytes = UInt64(vessel.memoryGB * 1024 * 1024 * 1024)
                     let baseImageName = vessel.image.split(separator: ":").first.map(String.init) ?? "vessel"
                     config.hostname = baseImageName
-                    config.dns = Containerization.DNS(nameservers: ["192.168.105.1"])
+                    config.dns = Containerization.DNS(nameservers: ["8.8.8.8", "1.1.1.1"])
                     var envs: [String] = []
                     for (key, value) in vessel.envVars { envs.append("\(key)=\(value)") }
                     config.process.environmentVariables = envs

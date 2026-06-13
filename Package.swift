@@ -8,14 +8,16 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/containerization.git", branch: "main"),
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.0.0")
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.0.0"),
+        .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0")
     ],
     targets: [
         .executableTarget(
             name: "Vessel",
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
-                .product(name: "SwiftTerm", package: "SwiftTerm")
+                .product(name: "SwiftTerm", package: "SwiftTerm"),
+                .product(name: "Yams", package: "Yams")
             ],
             path: "Sources/Vessel"
         )

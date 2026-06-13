@@ -21,6 +21,44 @@ public struct VesselVolume: Codable, Hashable {
     }
 }
 
+public struct VesselPod: Identifiable, Codable, Hashable {
+    public let id: String
+    public let name: String
+    public let status: VesselStatus
+    public let containers: [VesselContainer]
+    
+    public let cpus: Int
+    public let memoryGB: Double
+    
+    public init(id: String, name: String, status: VesselStatus, containers: [VesselContainer], cpus: Int = 2, memoryGB: Double = 2.0) {
+        self.id = id
+        self.name = name
+        self.status = status
+        self.containers = containers
+        self.cpus = cpus
+        self.memoryGB = memoryGB
+    }
+}
+
+public enum VesselWorkload: Identifiable, Hashable {
+    case container(VesselContainer)
+    case pod(VesselPod)
+    
+    public var id: String {
+        switch self {
+        case .container(let c): return c.id
+        case .pod(let p): return p.id
+        }
+    }
+    
+    public var name: String {
+        switch self {
+        case .container(let c): return c.name
+        case .pod(let p): return p.name
+        }
+    }
+}
+
 public struct VesselContainer: Identifiable, Codable, Hashable {
     public let id: String
     public let name: String

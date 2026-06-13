@@ -118,7 +118,7 @@ public class StatsParser {
         }
         
         // Parse /proc/loadavg
-        let loadParts = loadSection.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        let loadParts = loadSection.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
         if loadParts.count >= 3 {
             currentModel.loadAverage = [
                 Double(loadParts[0]) ?? 0.0,
@@ -128,7 +128,7 @@ public class StatsParser {
         }
         
         // Parse /proc/uptime
-        let uptimeParts = uptimeSection.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        let uptimeParts = uptimeSection.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
         if let uptime = uptimeParts.first, let uptimeDouble = Double(uptime) {
             currentModel.uptimeSeconds = uptimeDouble
         }

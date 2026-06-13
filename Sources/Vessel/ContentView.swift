@@ -1,5 +1,6 @@
 import SwiftUI
 import Containerization
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     enum SidebarItem: String, CaseIterable, Identifiable {
@@ -37,73 +38,7 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             NavigationSplitView {
-            // Sidebar Customization
-            VStack(alignment: .leading, spacing: 0) {
-                // Header (Vessel Logo)
-                HStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(AppTheme.accentBlue)
-                            .frame(width: 40, height: 40)
-                        Image(systemName: "cube.transparent")
-                            .foregroundColor(.white)
-                            .font(.system(size: 20))
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Vessel")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(AppTheme.accentBlue)
-                        Text("Infrastructure Engine")
-                            .font(.caption)
-                            .foregroundColor(AppTheme.textSecondary)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 24)
-                
-                Divider()
-                    .background(AppTheme.cardBorder)
-                
-                // Menu Items
-                ScrollView {
-                    VStack(spacing: 8) {
-                        ForEach(SidebarItem.allCases) { item in
-                            Button(action: {
-                                selectedSidebarItem = item
-                                selectedContainerId = nil // reset selection
-                            }) {
-                                HStack(spacing: 12) {
-                                    Image(systemName: item.icon)
-                                        .font(.system(size: 16))
-                                        .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
-                                        .frame(width: 24)
-                                    
-                                    Text(item.rawValue)
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
-                                    
-                                    Spacer()
-                                }
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(selectedSidebarItem == item ? AppTheme.accentBlue.opacity(0.05) : Color.clear)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.horizontal, 12)
-                        }
-                    }
-                    .padding(.top, 24)
-                }
-                Spacer()
-            }
-            .background(AppTheme.sidebarBackground)
-            .navigationSplitViewColumnWidth(260)
-            
+            sidebar
         } detail: {
             ZStack(alignment: .top) {
                 AppTheme.mainBackgroundTop
@@ -112,10 +47,10 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     // Top Navigation Bar
                     HStack {
-                        if let selectedId = selectedContainerId, let container = viewModel.containers.first(where: { $0.id == selectedId }) {
+                        if let selectedId = selectedContainerId, let workload = viewModel.workload(for: selectedId) {
                             // Breadcrumbs
                             HStack(spacing: 8) {
-                                Text("Containers")
+                                Text("Workloads")
                                     .foregroundColor(AppTheme.textSecondary)
                                     .onTapGesture {
                                         selectedContainerId = nil
@@ -124,7 +59,7 @@ struct ContentView: View {
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 10))
                                     .foregroundColor(AppTheme.textSecondary)
-                                Text(container.name)
+                                Text(workload.name)
                                     .foregroundColor(AppTheme.textPrimary)
                                     .fontWeight(.bold)
                             }
@@ -132,26 +67,13 @@ struct ContentView: View {
                             
                             Spacer()
                             
-                            // Middle Search for Detail View
-                            HStack {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundColor(AppTheme.textSecondary)
-                                TextField("Search logs...", text: .constant(""))
-                                    .textFieldStyle(.plain)
-                                    .foregroundColor(AppTheme.textPrimary)
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(AppTheme.cardBackground)
-                            .overlay(RoundedRectangle(cornerRadius: 20).stroke(AppTheme.cardBorder, lineWidth: 1))
-                            .frame(width: 300)
-                            
+
                         } else {
                             // Search & Icons
                             HStack {
                                 Image(systemName: "magnifyingglass")
                                     .foregroundColor(AppTheme.textSecondary)
-                                TextField("Search containers...", text: $searchText)
+                                TextField("Search workloads...", text: $searchText)
                                     .textFieldStyle(.plain)
                                     .foregroundColor(AppTheme.textPrimary)
                             }
@@ -162,39 +84,70 @@ struct ContentView: View {
                             .frame(width: 300)
                             
                             Spacer()
+                            
+                            Button(action: {
+                                let panel = NSOpenPanel()
+                                panel.allowsMultipleSelection = false
+                                panel.canChooseDirectories = false
+                                panel.canChooseFiles = true
+                                panel.allowedContentTypes = [.yaml, .init(filenameExtension: "yml")!]
+                                if panel.runModal() == .OK, let url = panel.url {
+                                    Task {
+                                        await viewModel.startPod(url: url)
+                                    }
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: "folder")
+                                    Text("Load Compose")
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(AppTheme.cardBackground)
+                                .foregroundColor(AppTheme.textPrimary)
+                                .overlay(RoundedRectangle(cornerRadius: 20).stroke(AppTheme.cardBorder, lineWidth: 1))
+                                .cornerRadius(20)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 16)
-                    .background(Color.white)
+                    .background(Color.clear)
                     
                     Divider()
                         .background(AppTheme.cardBorder)
                     
                     // Main Content Area
                     if selectedSidebarItem == .containers {
-                        if let selectedId = selectedContainerId,
-                           let container = viewModel.containers.first(where: { $0.id == selectedId }) {
+                        if let selectedId = selectedContainerId, let workload = viewModel.workload(for: selectedId) {
                             // Detail View
-                            ContainerDetailView(container: container, viewModel: viewModel)
+                            if case .container(let container) = workload {
+                                ContainerDetailView(container: container, viewModel: viewModel)
+                            } else if case .pod(let pod) = workload {
+                                VStack {
+                                    Text("Pod Detail View for \(pod.name) not yet implemented")
+                                        .foregroundColor(AppTheme.textSecondary)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
                         } else {
                             // List View
-                            let filteredContainers = searchText.isEmpty ? viewModel.containers : viewModel.containers.filter {
-                                $0.name.localizedCaseInsensitiveContains(searchText) ||
-                                $0.image.localizedCaseInsensitiveContains(searchText)
+                            let filteredWorkloads = searchText.isEmpty ? viewModel.workloads : viewModel.workloads.filter {
+                                $0.name.localizedCaseInsensitiveContains(searchText)
                             }
                             ContainersListView(
-                                containers: filteredContainers,
+                                workloads: filteredWorkloads,
                                 loadingContainers: viewModel.loadingContainers,
                                 viewModel: viewModel,
-                                onSelect: { container in
-                                    selectedContainerId = container.id
+                                onSelect: { id in
+                                    selectedContainerId = id
                                 },
-                                onStart: { container in
-                                    Task { await viewModel.startContainer(id: container.id) }
+                                onStart: { id in
+                                    Task { await viewModel.startContainer(id: id) }
                                 },
-                                onStop: { container in
-                                    Task { await viewModel.stopContainer(id: container.id) }
+                                onStop: { id in
+                                    Task { await viewModel.stopContainer(id: id) }
                                 },
                                 onNewContainer: {
                                     showingCreateContainer = true
@@ -245,6 +198,76 @@ struct ContentView: View {
         .onAppear {
             // Already checked in initialization
         }
+    }
+    
+    @ViewBuilder
+    private var sidebar: some View {
+        // Sidebar Customization
+        VStack(alignment: .leading, spacing: 0) {
+            // Header (Vessel Logo)
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(AppTheme.accentBlue)
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "cube.transparent")
+                        .foregroundColor(.white)
+                        .font(.system(size: 20))
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Vessel")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(AppTheme.accentBlue)
+                    Text("Infrastructure Engine")
+                        .font(.caption)
+                        .foregroundColor(AppTheme.textSecondary)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 24)
+            
+            Divider()
+                .background(AppTheme.cardBorder)
+            
+            // Menu Items
+            ScrollView {
+                VStack(spacing: 8) {
+                    ForEach(SidebarItem.allCases) { item in
+                        Button(action: {
+                            selectedSidebarItem = item
+                            selectedContainerId = nil // reset selection
+                        }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: item.icon)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
+                                    .frame(width: 24)
+                                
+                                Text(item.rawValue)
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
+                                
+                                Spacer()
+                            }
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(selectedSidebarItem == item ? AppTheme.accentBlue.opacity(0.05) : Color.clear)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 12)
+                    }
+                }
+                .padding(.top, 24)
+            }
+            Spacer()
+        }
+        .background(AppTheme.sidebarBackground)
+        .navigationSplitViewColumnWidth(260)
     }
     
     private var installOverlay: some View {

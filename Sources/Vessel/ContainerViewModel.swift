@@ -65,7 +65,7 @@ public struct LogLine: Identifiable, Hashable, Sendable {
 
 @Observable
 public class ContainerViewModel {
-    public var containers: [VesselContainer] = []
+    public var workloads: [VesselWorkload] = []
     
     // Zbiera ID kontenerów, na których aktualnie wykonywana jest asynchroniczna operacja, by blokować interfejs UI
     public var loadingContainers: Set<String> = []
@@ -86,17 +86,26 @@ public class ContainerViewModel {
     
     public init() {
         Task {
-            await fetchInitialContainers()
+            await fetchInitialWorkloads()
         }
     }
     
     @MainActor
-    private func fetchInitialContainers() async {
+    private func fetchInitialWorkloads() async {
         do {
-            self.containers = try await daemon.fetchActiveContainers()
+            self.workloads = try await daemon.fetchActiveWorkloads()
         } catch {
-            print("Błąd podczas pobierania kontenerów: \(error.localizedDescription)")
-            self.containers = []
+            print("Błąd podczas pobierania workloadów: \(error.localizedDescription)")
+            self.workloads = []
+        }
+    }
+    
+    public func workload(for id: String) -> VesselWorkload? {
+        return workloads.first { 
+            switch $0 {
+            case .container(let c): return c.id == id
+            case .pod(let p): return p.id == id
+            }
         }
     }
     @MainActor
@@ -106,17 +115,20 @@ public class ContainerViewModel {
         
         // Add a temporary container to the UI
         let placeholder = VesselContainer(id: newId, name: name, subtitle: "WORKLOAD", image: image, status: .creating)
-        self.containers.insert(placeholder, at: 0)
+        self.workloads.insert(.container(placeholder), at: 0)
         
         defer { loadingContainers.remove(newId) }
         
         do {
             try await daemon.start(containerId: newId, imageReference: image, name: name, rootfsSizeGB: rootfsSizeGB, rosetta: rosetta, networking: networking, cpus: cpus, memoryGB: memoryGB, envVars: envVars, volumes: volumes)
-            await fetchInitialContainers()
+            await fetchInitialWorkloads()
         } catch {
             print("Błąd podczas tworzenia kontenera: \(error.localizedDescription)")
             self.errorMessage = "Failed to create container: \(error.localizedDescription)"
-            self.containers.removeAll(where: { $0.id == newId })
+            self.workloads.removeAll(where: { 
+                if case .container(let c) = $0 { return c.id == newId }
+                return false
+            })
         }
     }
     @MainActor
@@ -126,13 +138,23 @@ public class ContainerViewModel {
         
         do {
             try await daemon.start(containerId: id)
-            await fetchInitialContainers()
+            await fetchInitialWorkloads()
             
             Task { await streamLogs(for: id) }
             Task { await subscribeToStats(for: id) }
         } catch {
-            print("Błąd podczas startu kontenera: \(error.localizedDescription)")
-            self.errorMessage = "Failed to start container: \(error.localizedDescription)"
+            print("Błąd podczas uruchamiania kontenera: \(error.localizedDescription)")
+        }
+    }
+    
+    @MainActor
+    public func startPod(url: URL) async {
+        do {
+            try await daemon.startPod(yamlPath: url)
+            await fetchInitialWorkloads()
+        } catch {
+            print("Błąd podczas uruchamiania poda: \(error.localizedDescription)")
+            self.errorMessage = "Failed to start pod: \(error.localizedDescription)"
         }
     }
     
@@ -143,7 +165,7 @@ public class ContainerViewModel {
         
         do {
             try await daemon.stop(containerId: id)
-            await fetchInitialContainers()
+            await fetchInitialWorkloads()
         } catch {
             print("Błąd podczas zatrzymywania kontenera: \(error.localizedDescription)")
         }
