@@ -49,9 +49,11 @@ public class StatsParser {
         var tasks = 0
         var runningTasks = 0
         
-        let statLines = statSection.components(separatedBy: .newlines)
+        // ⚡ Bolt Optimization: Use .split instead of .components to avoid allocating new Arrays and Strings
+        // .split returns Substrings (views into the original string) and automatically handles empty sequences.
+        let statLines = statSection.split(whereSeparator: \.isNewline)
         for line in statLines {
-            let parts = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+            let parts = line.split(whereSeparator: \.isWhitespace)
             guard !parts.isEmpty else { continue }
             
             if parts[0].hasPrefix("cpu") && parts[0] != "cpu" {
@@ -69,7 +71,7 @@ public class StatsParser {
                     let nonIdle = user + nice + system + irq + softirq
                     let total = idle + nonIdle
                     
-                    let cpuName = parts[0]
+                    let cpuName = String(parts[0])
                     if let prev = prevCpuTicks[cpuName] {
                         let diffTotal = Double(total > prev.total ? total - prev.total : 0)
                         let diffIdle = Double(idle > prev.idle ? idle - prev.idle : 0)
@@ -98,9 +100,9 @@ public class StatsParser {
         currentModel.runningTasks = runningTasks
         
         // Parse /proc/meminfo
-        let memLines = memSection.components(separatedBy: .newlines)
+        let memLines = memSection.split(whereSeparator: \.isNewline)
         for line in memLines {
-            let parts = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+            let parts = line.split(whereSeparator: \.isWhitespace)
             guard parts.count >= 2 else { continue }
             let key = parts[0]
             let valueStr = parts[1]
@@ -118,7 +120,7 @@ public class StatsParser {
         }
         
         // Parse /proc/loadavg
-        let loadParts = loadSection.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        let loadParts = loadSection.split(whereSeparator: \.isWhitespace)
         if loadParts.count >= 3 {
             currentModel.loadAverage = [
                 Double(loadParts[0]) ?? 0.0,
@@ -128,7 +130,7 @@ public class StatsParser {
         }
         
         // Parse /proc/uptime
-        let uptimeParts = uptimeSection.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        let uptimeParts = uptimeSection.split(whereSeparator: \.isWhitespace)
         if let uptime = uptimeParts.first, let uptimeDouble = Double(uptime) {
             currentModel.uptimeSeconds = uptimeDouble
         }
