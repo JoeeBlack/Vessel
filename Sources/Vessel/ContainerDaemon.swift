@@ -404,6 +404,19 @@ public class ContainerDaemon {
         
         debugLog("start(containerId:) called for \(containerId)")
         
+        if let activePod = activePods[containerId] {
+            if let linuxPod = activePod.linuxPod {
+                try await linuxPod.start()
+            } else {
+                throw NSError(domain: "Vessel", code: 400, userInfo: [NSLocalizedDescriptionKey: "Pod linux context not available for restart"])
+            }
+            let pod = activePod.pod
+            let updatedPod = VesselPod(id: pod.id, name: pod.name, status: .running, containers: pod.containers, cpus: pod.cpus, memoryGB: pod.memoryGB)
+            activePods[containerId] = ActivePod(pod: updatedPod, linuxPod: activePod.linuxPod)
+            savePods()
+            return
+        }
+
         guard let active = activeContainers[containerId] else { throw NSError(domain: "Vessel", code: 404, userInfo: [NSLocalizedDescriptionKey: "Container not found"]) }
         
         let vessel = active.vessel
@@ -591,6 +604,17 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
     }
 }    
     public func stop(containerId: String) async throws {
+        if let activePod = activePods[containerId] {
+            if let linuxPod = activePod.linuxPod {
+                try? await linuxPod.stop()
+            }
+            let pod = activePod.pod
+            let updatedPod = VesselPod(id: pod.id, name: pod.name, status: .stopped, containers: pod.containers, cpus: pod.cpus, memoryGB: pod.memoryGB)
+            activePods[containerId] = ActivePod(pod: updatedPod, linuxPod: nil)
+            savePods()
+            return
+        }
+
         guard let active = activeContainers[containerId], let linux = active.linux else { return }
         try await linux.stop()
         let vessel = active.vessel
@@ -600,6 +624,15 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
     }
     
     public func delete(containerId: String) async throws {
+        if let activePod = activePods[containerId] {
+            if let linuxPod = activePod.linuxPod {
+                try? await linuxPod.stop()
+            }
+            activePods.removeValue(forKey: containerId)
+            savePods()
+            return
+        }
+
         if let active = activeContainers[containerId], let linux = active.linux {
             try? await linux.stop()
         }

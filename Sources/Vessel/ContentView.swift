@@ -113,11 +113,13 @@ struct ContentView: View {
                             if case .container(let container) = workload {
                                 ContainerDetailView(container: container, viewModel: viewModel)
                             } else if case .pod(let pod) = workload {
-                                VStack {
-                                    Text("Pod Detail View for \(pod.name) not yet implemented")
-                                        .foregroundColor(AppTheme.textSecondary)
-                                }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                PodDetailView(
+                                    pod: pod,
+                                    viewModel: viewModel,
+                                    onSelectContainer: { id in
+                                        selectedContainerId = id
+                                    }
+                                )
                             }
                         } else {
                             // List View
