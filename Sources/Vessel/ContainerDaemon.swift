@@ -15,7 +15,7 @@ public struct SimpleNATNetwork: Network {
         let ip = nextIP
         nextIP += 1
         // Security: Avoid force unwrap to prevent DoS on invalid IP generation.
-        guard let prefix = try? Prefix.ipv4(24) else { throw NSError(domain: "Network", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid IPv4 prefix"]) }
+        guard let prefix = Prefix.ipv4(24) else { throw NSError(domain: "Network", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid IPv4 prefix"]) }
         return NATInterface(
             ipv4Address: try CIDRv4(IPv4Address(UInt32(192<<24 | 168<<16 | 64<<8) | ip), prefix: prefix),
             ipv4Gateway: try IPv4Address("192.168.64.1")
@@ -26,7 +26,7 @@ public struct SimpleNATNetwork: Network {
         let ip = nextIP
         nextIP += 1
         // Security: Avoid force unwrap to prevent DoS on invalid IP generation.
-        guard let prefix = try? Prefix.ipv4(24) else { throw NSError(domain: "Network", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid IPv4 prefix"]) }
+        guard let prefix = Prefix.ipv4(24) else { throw NSError(domain: "Network", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid IPv4 prefix"]) }
         return NATInterface(
             ipv4Address: try CIDRv4(IPv4Address(UInt32(192<<24 | 168<<16 | 64<<8) | ip), prefix: prefix),
             ipv4Gateway: try IPv4Address("192.168.64.1"),
@@ -178,7 +178,7 @@ public class ContainerDaemon {
         }()
         
         let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
-        var testKernel = Kernel(path: kernelPath, platform: .linuxArm)
+        let testKernel = Kernel(path: kernelPath, platform: .linuxArm)
         
         let vmm = VZVirtualMachineManager(
             kernel: testKernel,
@@ -599,11 +599,27 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         if let active = activeContainers[containerId], let linux = active.linux {
             try? await linux.stop()
         }
+        
+        let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
+        let testKernel = Kernel(path: kernelPath, platform: .linuxArm)
+        
+        let vmm = VZVirtualMachineManager(
+            kernel: testKernel,
+            initialFilesystem: Mount(
+                destination: "/",
+                device: "vda",
+                filesystem: "ext4",
+                options: ["ro"]
+            ),
+            rosetta: false
+        )
+        
         var manager = try await ContainerManager(
-            vmm: VZVirtualMachineManager(),
+            vmm: vmm,
             imageStore: ImageStore.default,
             network: SimpleNATNetwork()
         )
+        
         try await manager.delete(containerId)
         activeContainers.removeValue(forKey: containerId)
         saveContainers()
