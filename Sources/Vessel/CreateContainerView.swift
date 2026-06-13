@@ -45,7 +45,9 @@ struct CreateContainerView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Close")
-                .accessibilityLabel("Close")
+
+
+
             }
             .padding(24)
             .background(AppTheme.mainBackgroundTop)
@@ -193,8 +195,11 @@ struct CreateContainerView: View {
                                         .foregroundColor(AppTheme.accentBlue)
                                 }
                                 .buttonStyle(.plain)
+
                                 .help("Add environment variable")
-                                .accessibilityLabel("Add environment variable")
+
+                                .help("Add environment variable")
+
                             }
                             
                             ForEach($envVars) { $envVar in
@@ -225,8 +230,11 @@ struct CreateContainerView: View {
                                             .foregroundColor(.red)
                                     }
                                     .buttonStyle(.plain)
+
                                     .help("Remove environment variable")
-                                    .accessibilityLabel("Remove environment variable")
+
+                                    .help("Remove environment variable")
+
                                 }
                             }
                         }
@@ -247,8 +255,11 @@ struct CreateContainerView: View {
                                         .foregroundColor(AppTheme.accentBlue)
                                 }
                                 .buttonStyle(.plain)
+
                                 .help("Add volume mount")
-                                .accessibilityLabel("Add volume mount")
+
+                                .help("Add volume mount")
+
                             }
                             
                             ForEach($volumes) { $volume in
@@ -279,8 +290,11 @@ struct CreateContainerView: View {
                                             .foregroundColor(.red)
                                     }
                                     .buttonStyle(.plain)
+
                                     .help("Remove volume mount")
-                                    .accessibilityLabel("Remove volume mount")
+
+                                    .help("Remove volume mount")
+
                                 }
                             }
                         }
