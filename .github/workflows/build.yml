@@ -1,0 +1,33 @@
+name: Build Vessel
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Swift
+      uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: "5.10"
+
+    - name: Run build script
+      run: |
+        chmod +x ./build_dmg.sh
+        ./build_dmg.sh
+
+    - name: Upload DMG Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Vessel-DMG
+        path: Vessel.dmg
