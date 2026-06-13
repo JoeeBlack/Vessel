@@ -21,10 +21,6 @@ struct ContainerDetailView: View {
                             Text(container.name)
                                 .font(.system(size: 32, weight: .bold, design: .serif))
                                 .foregroundColor(AppTheme.textPrimary)
-                            
-                            Text("v2.4.1")
-                                .font(.system(size: 14, design: .monospaced))
-                                .foregroundColor(AppTheme.accentBlue)
                         }
                         
                         HStack(spacing: 4) {
@@ -59,6 +55,7 @@ struct ContainerDetailView: View {
                             .font(.system(size: 13, weight: .bold))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
+                            .contentShape(Rectangle())
                             .background(Color.clear)
                         }
                         .buttonStyle(.plain)
@@ -78,6 +75,7 @@ struct ContainerDetailView: View {
                             .font(.system(size: 13, weight: .bold))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
+                            .contentShape(Rectangle())
                             .background(Color.clear)
                         }
                         .buttonStyle(.plain)
@@ -155,7 +153,8 @@ struct ContainerDetailView: View {
                             .padding(.horizontal, 8)
                             .padding(.bottom, 8)
                         } else {
-                            ProgressView(isRunning ? "Connecting to terminal..." : "Terminal offline")
+                            Text(isRunning ? "Terminal inactive. Click 'Exec' to connect." : "Terminal offline")
+                                .foregroundColor(AppTheme.textSecondary)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     }

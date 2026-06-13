@@ -126,7 +126,6 @@ public class ContainerViewModel {
         do {
             try await daemon.start(containerId: id)
             await fetchInitialContainers()
-            await startShell(for: id)
             
             Task { await streamLogs(for: id) }
             Task { await subscribeToStats(for: id) }
