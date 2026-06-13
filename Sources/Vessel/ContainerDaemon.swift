@@ -55,6 +55,13 @@ public class ContainerDaemon {
         let prefix: String
         let continuation: AsyncStream<String>.Continuation
         
+        // ⚡ Bolt Optimization: Cache DateFormatter. Instantiating it is notoriously slow.
+        private let dateFormatter: DateFormatter = {
+            let df = DateFormatter()
+            df.dateFormat = "HH:mm:ss.SSS"
+            return df
+        }()
+
         init(prefix: String, continuation: AsyncStream<String>.Continuation) {
             self.prefix = prefix
             self.continuation = continuation
@@ -62,11 +69,11 @@ public class ContainerDaemon {
         
         func write(_ data: Data) throws {
             if let string = String(data: data, encoding: .utf8) {
-                let df = DateFormatter()
-                df.dateFormat = "HH:mm:ss.SSS"
-                let timeStr = df.string(from: Date())
-                let lines = string.components(separatedBy: .newlines).filter { !$0.isEmpty }
+                let timeStr = dateFormatter.string(from: Date())
+                // ⚡ Bolt Optimization: Use .split instead of .components to avoid allocating new Arrays and Strings
+                let lines = string.split(whereSeparator: \.isNewline)
                 for line in lines {
+                    guard !line.isEmpty else { continue }
                     continuation.yield("\(timeStr) \(prefix) \(line)")
                 }
             }
