@@ -7,7 +7,7 @@ let package = Package(
         .macOS("15.0")
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/containerization.git", branch: "main"),
+        .package(url: "https://github.com/apple/containerization.git", revision: "9275f365dd555c8f072e7d250d809f5eb7bdd746"),
         .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.0.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0")
     ],
