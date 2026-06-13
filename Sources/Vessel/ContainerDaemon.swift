@@ -84,7 +84,9 @@ public class ContainerDaemon {
     private func saveContainers() {
         let vessels = activeContainers.values.map { $0.vessel }
         if let data = try? JSONEncoder().encode(vessels) {
-            try? data.write(to: containersFilePath)
+            // 🛡️ Sentinel: Ensure sensitive container configurations (including env vars which might contain secrets) are only readable by the owner
+            try? data.write(to: containersFilePath, options: [.atomic, .completeFileProtection])
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: containersFilePath.path)
         }
     }
     
