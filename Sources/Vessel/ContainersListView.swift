@@ -7,6 +7,7 @@ struct ContainersListView: View {
     var onSelect: (String) -> Void
     var onStart: (String) -> Void
     var onStop: (String) -> Void
+    var onDelete: (String) -> Void
     var onNewContainer: () -> Void
     
     let columns = [
@@ -77,7 +78,8 @@ struct ContainersListView: View {
                                 isLoading: loadingContainers.contains(container.id),
                                 viewModel: viewModel,
                                 onStart: { onStart(container.id) },
-                                onStop: { onStop(container.id) }
+                                onStop: { onStop(container.id) },
+                                onDelete: { onDelete(container.id) }
                             )
                             .onTapGesture {
                                 onSelect(container.id)
@@ -145,6 +147,7 @@ struct ContainerCardView: View {
     var viewModel: ContainerViewModel
     let onStart: () -> Void
     let onStop: () -> Void
+    let onDelete: () -> Void
     
     @State private var isAnimatingOverlay: Bool = false
     
@@ -281,6 +284,21 @@ struct ContainerCardView: View {
                     .buttonStyle(.plain)
                     .disabled(isLoading)
                 }
+                
+                Button(action: onDelete) {
+                    HStack {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 10))
+                        Text("Delete")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.mainBackgroundTop)
+                    .foregroundColor(AppTheme.stoppedRed)
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .disabled(isLoading)
             }
         }
         .padding(20)

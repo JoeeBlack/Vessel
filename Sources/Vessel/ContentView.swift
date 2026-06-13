@@ -149,6 +149,9 @@ struct ContentView: View {
                                 onStop: { id in
                                     Task { await viewModel.stopContainer(id: id) }
                                 },
+                                onDelete: { id in
+                                    Task { await viewModel.deleteContainer(id: id) }
+                                },
                                 onNewContainer: {
                                     showingCreateContainer = true
                                 }

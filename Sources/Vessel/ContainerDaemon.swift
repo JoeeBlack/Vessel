@@ -595,6 +595,20 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         saveContainers()
     }
     
+    public func delete(containerId: String) async throws {
+        if let active = activeContainers[containerId], let linux = active.linux {
+            try? await linux.stop()
+        }
+        var manager = try await ContainerManager(
+            vmm: VZVirtualMachineManager(),
+            imageStore: ImageStore.default,
+            network: SimpleNATNetwork()
+        )
+        try await manager.delete(containerId)
+        activeContainers.removeValue(forKey: containerId)
+        saveContainers()
+    }
+    
     public func streamLogs(for id: String) -> AsyncStream<String> {
         if let active = activeContainers[id], let stream = active.logStream {
             return stream

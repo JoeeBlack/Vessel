@@ -172,6 +172,20 @@ public class ContainerViewModel {
     }
     
     @MainActor
+    public func deleteContainer(id: String) async {
+        loadingContainers.insert(id)
+        defer { loadingContainers.remove(id) }
+        
+        do {
+            try await daemon.delete(containerId: id)
+            await fetchInitialWorkloads()
+        } catch {
+            print("Błąd podczas usuwania kontenera: \(error.localizedDescription)")
+            self.errorMessage = "Failed to delete container: \(error.localizedDescription)"
+        }
+    }
+    
+    @MainActor
     public func streamLogs(for id: String) async {
         // Czyścimy poprzednie logi za każdym razem, gdy wywołujemy metodę dla nowego kontenera
         currentLogs.removeAll()
