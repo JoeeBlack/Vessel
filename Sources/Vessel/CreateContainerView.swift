@@ -44,6 +44,7 @@ struct CreateContainerView: View {
                         .foregroundColor(AppTheme.textSecondary)
                 }
                 .buttonStyle(.plain)
+                .help("Close")
             }
             .padding(24)
             .background(AppTheme.mainBackgroundTop)
@@ -191,6 +192,7 @@ struct CreateContainerView: View {
                                         .foregroundColor(AppTheme.accentBlue)
                                 }
                                 .buttonStyle(.plain)
+                                .help("Add Environment Variable")
                             }
                             
                             ForEach($envVars) { $envVar in
@@ -221,6 +223,7 @@ struct CreateContainerView: View {
                                             .foregroundColor(.red)
                                     }
                                     .buttonStyle(.plain)
+                                    .help("Remove Environment Variable")
                                 }
                             }
                         }
@@ -241,6 +244,7 @@ struct CreateContainerView: View {
                                         .foregroundColor(AppTheme.accentBlue)
                                 }
                                 .buttonStyle(.plain)
+                                .help("Add Volume Mount")
                             }
                             
                             ForEach($volumes) { $volume in
@@ -271,6 +275,7 @@ struct CreateContainerView: View {
                                             .foregroundColor(.red)
                                     }
                                     .buttonStyle(.plain)
+                                    .help("Remove Volume Mount")
                                 }
                             }
                         }

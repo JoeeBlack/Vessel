@@ -1,0 +1,3 @@
+## 2024-06-13 - SwiftUI Accessibility and Tooltips
+**Learning:** In SwiftUI for macOS, adding the `.help("text")` modifier to interactive elements like `Button` natively handles both visual tooltips and screen reader accessibility labels, making it an excellent all-in-one UX improvement for icon-only buttons.
+**Action:** Always use the `.help()` modifier for icon-only buttons or complex UI components in SwiftUI macOS projects instead of separate `accessibilityLabel` modifiers unless specific screen reader hints are required.
