@@ -69,19 +69,7 @@ struct ContentView: View {
                             
 
                         } else {
-                            // Search & Icons
-                            HStack {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundColor(AppTheme.textSecondary)
-                                TextField("Search workloads...", text: $searchText)
-                                    .textFieldStyle(.plain)
-                                    .foregroundColor(AppTheme.textPrimary)
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(AppTheme.cardBackground)
-                            .overlay(RoundedRectangle(cornerRadius: 20).stroke(AppTheme.cardBorder, lineWidth: 1))
-                            .frame(width: 300)
+                            // Icons (search removed)
                             
                             Spacer()
                             
