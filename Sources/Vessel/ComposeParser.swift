@@ -27,6 +27,11 @@ public class ComposeParser {
         var services: [ComposeService] = []
         
         for (serviceName, serviceData) in servicesDict {
+            // 🛡️ Sentinel: Validate service name to prevent path traversal when used in file paths
+            guard serviceName.range(of: "^[a-zA-Z0-9_-]+$", options: .regularExpression) != nil else {
+                throw NSError(domain: "ComposeParser", code: 4, userInfo: [NSLocalizedDescriptionKey: "Invalid service name '\(serviceName)'. Only alphanumeric characters, dashes, and underscores are allowed."])
+            }
+
             guard let serviceMap = serviceData as? [String: Any] else { continue }
             
             guard let image = serviceMap["image"] as? String else {

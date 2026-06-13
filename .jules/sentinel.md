@@ -7,3 +7,8 @@
 **Vulnerability:** `containers.json` file which stores container environment variables (potentially containing secrets like API keys or database passwords) was written with default permissions, making it world-readable.
 **Learning:** Automatically serialized configuration files are prone to information exposure if they include sensitive values.
 **Prevention:** Explicitly enforce restrictive file permissions (e.g., `0600`) and use safe file protection options (`.completeFileProtection`) when writing files that contain potentially sensitive user configuration or environmental data.
+
+## 2024-06-14 - [Path Traversal via Untrusted YAML Keys]
+**Vulnerability:** Path traversal vulnerability due to using untrusted dictionary keys (e.g., service names from a Compose YAML file) directly in file system path construction (`store.path.appendingPathComponent("containers").appendingPathComponent("\(podId)-\(service.name)-rootfs.ext4")`).
+**Learning:** In configuration files like YAML, keys are user-supplied and thus untrusted input. If these keys are used dynamically for resource generation or path construction, they can contain malicious characters like `../` to write or overwrite data outside the intended sandbox.
+**Prevention:** Always validate untrusted keys against a strict allowlist regex (e.g., `^[a-zA-Z0-9_-]+$`) before using them in file system or command line contexts.
