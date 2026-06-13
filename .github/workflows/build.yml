@@ -8,18 +8,22 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-15
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      env:
+        FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       with:
         submodules: recursive
 
     - name: Set up Swift
       uses: swift-actions/setup-swift@v2
+      env:
+        FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       with:
-        swift-version: "5.10"
+        swift-version: "6.2"
 
     - name: Run build script
       run: |
