@@ -11,18 +11,22 @@ public struct SimpleNATNetwork: Network {
     public mutating func createInterface(_ id: String) throws -> Containerization.Interface? {
         let ip = nextIP
         nextIP += 1
+        // Security: Avoid force unwrap to prevent DoS on invalid IP generation.
+        guard let prefix = try? Prefix.ipv4(24) else { throw NSError(domain: "Network", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid IPv4 prefix"]) }
         return NATInterface(
-            ipv4Address: try! CIDRv4(IPv4Address(UInt32(192<<24 | 168<<16 | 105<<8) | ip), prefix: try! Prefix.ipv4(24)!),
-            ipv4Gateway: try! IPv4Address("192.168.105.1")
+            ipv4Address: try CIDRv4(IPv4Address(UInt32(192<<24 | 168<<16 | 105<<8) | ip), prefix: prefix),
+            ipv4Gateway: try IPv4Address("192.168.105.1")
         )
     }
 
     public mutating func createInterface(_ id: String, mtu: UInt32) throws -> Containerization.Interface? {
         let ip = nextIP
         nextIP += 1
+        // Security: Avoid force unwrap to prevent DoS on invalid IP generation.
+        guard let prefix = try? Prefix.ipv4(24) else { throw NSError(domain: "Network", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid IPv4 prefix"]) }
         return NATInterface(
-            ipv4Address: try! CIDRv4(IPv4Address(UInt32(192<<24 | 168<<16 | 105<<8) | ip), prefix: try! Prefix.ipv4(24)!),
-            ipv4Gateway: try! IPv4Address("192.168.105.1"),
+            ipv4Address: try CIDRv4(IPv4Address(UInt32(192<<24 | 168<<16 | 105<<8) | ip), prefix: prefix),
+            ipv4Gateway: try IPv4Address("192.168.105.1"),
             mtu: mtu
         )
     }
@@ -336,9 +340,14 @@ public class ContainerDaemon {
             linux = container
         }
         
-        debugLog("Calling linux!.start()...")
-        try await linux!.start()
-        debugLog("linux!.start() succeeded!")
+        // Security: Avoid force unwrap to prevent application crash if the container fails to initialize.
+        guard let linuxContainer = linux else {
+            throw NSError(domain: "Vessel", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to initialize Linux container"])
+        }
+
+        debugLog("Calling linuxContainer.start()...")
+        try await linuxContainer.start()
+        debugLog("linuxContainer.start() succeeded!")
         
         let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.networkingEnabled ? "127.0.0.1" : nil, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: nil, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes)
         activeContainers[containerId] = ActiveContainer(vessel: updated, linux: linux, logStream: stream)
@@ -455,7 +464,13 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
                 let tag = parts.count > 1 ? String(parts[1]) : "latest"
                 let rawDigest = img.descriptor.digest
                 let lastPart = rawDigest.split(separator: ":").last
-                let shortDigest = lastPart != nil ? String(lastPart!.prefix(12)) : "unknown"
+                // Security: Avoid force unwrap to prevent a crash if digest format is malformed
+                let shortDigest: String
+                if let lp = lastPart {
+                    shortDigest = String(lp.prefix(12))
+                } else {
+                    shortDigest = "unknown"
+                }
                 
                 return VesselImage(id: shortDigest, repository: repo, tag: tag, size: "N/A MB")
             }
