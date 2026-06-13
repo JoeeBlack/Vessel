@@ -7,7 +7,7 @@ import ContainerizationOCI
 import ContainerizationError
 
 public struct SimpleNATNetwork: Network {
-    private var nextIP: UInt32 = 2
+    private var nextIP: UInt32 = 200
     
     public init() {}
     
@@ -17,8 +17,8 @@ public struct SimpleNATNetwork: Network {
         // Security: Avoid force unwrap to prevent DoS on invalid IP generation.
         guard let prefix = try? Prefix.ipv4(24) else { throw NSError(domain: "Network", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid IPv4 prefix"]) }
         return NATInterface(
-            ipv4Address: try CIDRv4(IPv4Address(UInt32(192<<24 | 168<<16 | 105<<8) | ip), prefix: prefix),
-            ipv4Gateway: try IPv4Address("192.168.105.1")
+            ipv4Address: try CIDRv4(IPv4Address(UInt32(192<<24 | 168<<16 | 64<<8) | ip), prefix: prefix),
+            ipv4Gateway: try IPv4Address("192.168.64.1")
         )
     }
 
@@ -28,8 +28,8 @@ public struct SimpleNATNetwork: Network {
         // Security: Avoid force unwrap to prevent DoS on invalid IP generation.
         guard let prefix = try? Prefix.ipv4(24) else { throw NSError(domain: "Network", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid IPv4 prefix"]) }
         return NATInterface(
-            ipv4Address: try CIDRv4(IPv4Address(UInt32(192<<24 | 168<<16 | 105<<8) | ip), prefix: prefix),
-            ipv4Gateway: try IPv4Address("192.168.105.1"),
+            ipv4Address: try CIDRv4(IPv4Address(UInt32(192<<24 | 168<<16 | 64<<8) | ip), prefix: prefix),
+            ipv4Gateway: try IPv4Address("192.168.64.1"),
             mtu: mtu
         )
     }
@@ -327,7 +327,7 @@ public class ContainerDaemon {
         ) { config in
             config.cpus = cpus
             config.memoryInBytes = UInt64(memoryGB * 1024 * 1024 * 1024)
-            config.dns = Containerization.DNS(nameservers: ["192.168.105.1"])
+            config.dns = Containerization.DNS(nameservers: ["192.168.64.1"])
             
             var envs: [String] = []
             for (key, value) in envVars {
@@ -439,7 +439,7 @@ public class ContainerDaemon {
                     config.memoryInBytes = UInt64(vessel.memoryGB * 1024 * 1024 * 1024)
                     let baseImageName = vessel.image.split(separator: ":").first.map(String.init) ?? "vessel"
                     config.hostname = baseImageName
-                    config.dns = Containerization.DNS(nameservers: ["192.168.105.1"])
+                    config.dns = Containerization.DNS(nameservers: ["192.168.64.1"])
                     var envs: [String] = []
                     for (key, value) in vessel.envVars { envs.append("\(key)=\(value)") }
                     config.process.environmentVariables = envs
@@ -468,7 +468,7 @@ public class ContainerDaemon {
                     config.memoryInBytes = UInt64(vessel.memoryGB * 1024 * 1024 * 1024)
                     let baseImageName = vessel.image.split(separator: ":").first.map(String.init) ?? "vessel"
                     config.hostname = baseImageName
-                    config.dns = Containerization.DNS(nameservers: ["192.168.105.1"])
+                    config.dns = Containerization.DNS(nameservers: ["192.168.64.1"])
                     var envs: [String] = []
                     for (key, value) in vessel.envVars { envs.append("\(key)=\(value)") }
                     config.process.environmentVariables = envs
