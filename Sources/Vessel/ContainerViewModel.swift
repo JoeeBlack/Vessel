@@ -12,7 +12,9 @@ func viewModelLog(_ msg: String) {
             handle.write(data)
             handle.closeFile()
         } else {
-            try? data.write(to: logFile)
+            // Security Enhancement: Use atomic writes and restrict permissions for log files
+            try? data.write(to: logFile, options: [.atomic])
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: logFile.path)
         }
     }
 }
