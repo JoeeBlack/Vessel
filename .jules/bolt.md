@@ -4,3 +4,6 @@
 ## 2024-06-13 - [Memory Allocation Optimization]
 **Learning:** Using `components(separatedBy:)` in hot paths (like a stats polling loop running every 1 second) causes excessive String and Array allocations because it produces arrays of fully initialized Strings, even for empty tokens.
 **Action:** Use `.split(whereSeparator:)` instead of `.components(separatedBy:)` in high-frequency string parsing routines. It returns `Substring` (a zero-allocation view into the original string) and automatically ignores empty items without requiring `.filter { !$0.isEmpty }`.
+## 2026-06-13 - [Memory Allocation Optimization]
+**Learning:** Using `components(separatedBy:)` with string separators in high-frequency loops (like reading from a live stats stream) allocates intermediate `Array<String>` and multiple `String` objects for each call. This can severely bottleneck performance in hot paths.
+**Action:** Use `range(of:)` to locate the substring and use `Substring` slicing (`str[..<range.lowerBound]` and `str[range.upperBound...]`) to extract sections without allocating new memory.
