@@ -247,7 +247,8 @@ struct ImageCardView: View {
                     .cornerRadius(8)
             }
             .buttonStyle(.plain)
-            .help("Delete Image")
+            .help("Delete image")
+            .accessibilityLabel("Delete image")
             .padding(.leading, 12)
         }
         .padding(16)
@@ -317,7 +318,8 @@ struct PullingImageCardView: View {
                     .cornerRadius(8)
             }
             .buttonStyle(.plain)
-            .help("Cancel Pull")
+            .help("Cancel pull")
+            .accessibilityLabel("Cancel pull")
             .padding(.leading, 12)
         }
         .padding(16)
