@@ -197,7 +197,7 @@ public class ContainerDaemon {
             if let interface = try? network.createInterface(podId) {
                 config.interfaces = [interface]
                 if let gateway = interface.ipv4Gateway {
-                    config.dns = .init(nameservers: [gateway.description])
+                    config.dns = .init(nameservers: ["8.8.8.8", "1.1.1.1"])
                 }
             }
         }
