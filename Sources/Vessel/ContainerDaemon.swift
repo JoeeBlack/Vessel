@@ -100,7 +100,10 @@ public class ContainerDaemon {
     private func saveContainers() {
         let vessels = activeContainers.values.map { $0.vessel }
         if let data = try? JSONEncoder().encode(vessels) {
-            try? data.write(to: containersFilePath)
+            // Security Enhancement: Write with atomic to prevent race conditions or reads before completely written. (completeFileProtection removed for daemon access during lock)
+            try? data.write(to: containersFilePath, options: [.atomic])
+            // Security Enhancement: Restrict file permissions to owner-only to prevent unauthorized reading of sensitive config like env vars
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: containersFilePath.path)
         }
     }
     
@@ -119,7 +122,10 @@ public class ContainerDaemon {
     private func savePods() {
         let vesselPods = activePods.values.map { $0.pod }
         if let data = try? JSONEncoder().encode(vesselPods) {
-            try? data.write(to: podsFilePath)
+            // Security Enhancement: Write with atomic to prevent race conditions or reads before completely written. (completeFileProtection removed for daemon access during lock)
+            try? data.write(to: podsFilePath, options: [.atomic])
+            // Security Enhancement: Restrict file permissions to owner-only to prevent unauthorized reading of sensitive config like env vars
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: podsFilePath.path)
         }
     }
     
