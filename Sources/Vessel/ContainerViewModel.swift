@@ -190,6 +190,17 @@ public class ContainerViewModel {
     }
     
     @MainActor
+    public func toggleShell(for id: String) async {
+        if shellProcesses[id] != nil {
+            shellProcesses.removeValue(forKey: id)
+            shellInputPipes.removeValue(forKey: id)
+            shellOutputPipes.removeValue(forKey: id)
+        } else {
+            await startShell(for: id)
+        }
+    }
+    
+    @MainActor
     public func subscribeToStats(for id: String) async {
         do {
             let stream = try await daemon.startStatsStream(containerId: id)

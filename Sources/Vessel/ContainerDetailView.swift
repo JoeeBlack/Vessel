@@ -84,7 +84,7 @@ struct ContainerDetailView: View {
                         
                         Button(action: {
                             Task {
-                                await viewModel.startShell(for: container.id)
+                                await viewModel.toggleShell(for: container.id)
                             }
                         }) {
                             HStack {
