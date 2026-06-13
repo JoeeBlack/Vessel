@@ -601,23 +601,13 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         }
         
         let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
-        let testKernel = Kernel(path: kernelPath, platform: .linuxArm)
-        
-        let vmm = VZVirtualMachineManager(
-            kernel: testKernel,
-            initialFilesystem: Mount(
-                destination: "/",
-                device: "vda",
-                filesystem: "ext4",
-                options: ["ro"]
-            ),
-            rosetta: false
-        )
+        let kernel = Kernel(path: kernelPath, platform: .linuxArm)
         
         var manager = try await ContainerManager(
-            vmm: vmm,
-            imageStore: ImageStore.default,
-            network: SimpleNATNetwork()
+            kernel: kernel,
+            initfsReference: "ghcr.io/apple/containerization/vminit:0.33.4",
+            network: SimpleNATNetwork(),
+            rosetta: false
         )
         
         try await manager.delete(containerId)
