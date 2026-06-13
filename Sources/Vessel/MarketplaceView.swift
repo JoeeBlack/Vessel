@@ -203,6 +203,7 @@ struct MarketplaceView: View {
                             .overlay(Circle().stroke(AppTheme.accentBlue, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
+                    .help("Deploy Container")
                     .cursor(.pointingHand)
                 }
             }
