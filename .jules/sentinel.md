@@ -17,3 +17,7 @@
 **Vulnerability:** Weak file writing options and default permissions for daemon configuration files.
 **Learning:** Using `data.write(to:)` without options is not atomic, leading to race conditions and corrupted reads. Also, storing configurations (with sensitive variables like environment variables) with default permissions exposes data to unauthorized read access. Note that `.completeFileProtection` should be avoided for daemons accessing files during screen locks.
 **Prevention:** Always use `options: [.atomic]` for file writes. Explicitly enforce secure file permissions using `FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath:)`.
+## 2026-06-13 - [Insecure Log File Writes]
+**Vulnerability:** Weak file writing options and default permissions for daemon log files (`daemon.log`).
+**Learning:** Writing sensitive logs using `data.write(to:)` without options leaves the file vulnerable to race conditions and sets default permissions, exposing potentially sensitive daemon metadata to unauthorized reads.
+**Prevention:** Always use `options: [.atomic]` when writing to log files to prevent partial reads or race conditions. Follow up with explicit POSIX permission restrictions (e.g., `0o600`) using `FileManager.default.setAttributes`.
