@@ -7,3 +7,8 @@
 **Vulnerability:** `containers.json` file which stores container environment variables (potentially containing secrets like API keys or database passwords) was written with default permissions, making it world-readable.
 **Learning:** Automatically serialized configuration files are prone to information exposure if they include sensitive values.
 **Prevention:** Explicitly enforce restrictive file permissions (e.g., `0600`) and use safe file protection options (`.completeFileProtection`) when writing files that contain potentially sensitive user configuration or environmental data.
+
+## 2024-06-13 - [Path Traversal in Compose Service Names]
+**Vulnerability:** Path traversal vulnerability in `ContainerDaemon.swift` when extracting rootfs for Compose pods. The `service.name` from the parsed YAML is used directly in `URL.appendingPathComponent`, allowing a malicious `docker-compose.yml` with a service name like `../../../tmp/hacked` to overwrite files outside the intended container directory.
+**Learning:** Keys in user-provided configuration files (like YAML dictionaries) are untrusted input just like values. They must be validated or sanitized before being used in file system operations.
+**Prevention:** Always validate service names and other user-provided identifiers against a strict allowlist regex (e.g., `^[a-zA-Z0-9_-]+$`) during parsing, before they reach the core logic.
