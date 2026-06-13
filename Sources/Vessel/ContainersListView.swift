@@ -322,14 +322,9 @@ struct ContainerCardView: View {
         )
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.03), radius: 10, x: 0, y: 4)
-        .onAppear {
+        .task(id: container.status) {
             if container.status == .running {
-                Task { await viewModel.subscribeToStats(for: container.id) }
-            }
-        }
-        .onChange(of: container.status) {
-            if container.status == .running {
-                Task { await viewModel.subscribeToStats(for: container.id) }
+                await viewModel.subscribeToStats(for: container.id)
             }
         }
     }

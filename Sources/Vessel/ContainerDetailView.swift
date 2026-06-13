@@ -173,13 +173,11 @@ struct ContainerDetailView: View {
             }
             .padding(40)
         }
-        .onAppear {
-            Task {
-                await viewModel.streamLogs(for: container.id)
-            }
-            Task {
-                await viewModel.subscribeToStats(for: container.id)
-            }
+        .task(id: container.id) {
+            await viewModel.streamLogs(for: container.id)
+        }
+        .task(id: container.id) {
+            await viewModel.subscribeToStats(for: container.id)
         }
     }
     

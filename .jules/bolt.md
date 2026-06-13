@@ -1,9 +1,7 @@
-## 2024-06-18 - SwiftUI View lifecycle with expensive subscriptions
-**Learning:** In SwiftUI, `onAppear` or multiple views rendering the same model state can easily trigger background tasks redundantly. In `ContainerViewModel`, this caused multiple instances of `sh` executing inside the container VM just to fetch stats.
-**Action:** When a method creates a long-running streaming subscription (especially background shells/processes), always use a tracking structure (like `Set`) in the ViewModel alongside `defer { tracking.remove(id) }` to prevent redundant overlapping streams on the same target.
-## 2024-06-13 - [Memory Allocation Optimization]
-**Learning:** Using `components(separatedBy:)` in hot paths (like a stats polling loop running every 1 second) causes excessive String and Array allocations because it produces arrays of fully initialized Strings, even for empty tokens.
-**Action:** Use `.split(whereSeparator:)` instead of `.components(separatedBy:)` in high-frequency string parsing routines. It returns `Substring` (a zero-allocation view into the original string) and automatically ignores empty items without requiring `.filter { !$0.isEmpty }`.
-## 2026-06-13 - [Memory Allocation Optimization]
-**Learning:** Using `components(separatedBy:)` with string separators in high-frequency loops (like reading from a live stats stream) allocates intermediate `Array<String>` and multiple `String` objects for each call. This can severely bottleneck performance in hot paths.
-**Action:** Use `range(of:)` to locate the substring and use `Substring` slicing (`str[..<range.lowerBound]` and `str[range.upperBound...]`) to extract sections without allocating new memory.
+## 2024-06-13 - Replace .onAppear { Task {} } with .task
+**Learning:** In SwiftUI, launching asynchronous tasks using `.onAppear { Task { ... } }` is a common performance anti-pattern. If the view disappears, the task continues running in the background unless explicitly tracked and cancelled, leading to memory leaks and wasted CPU cycles (e.g. infinite polling loops for container stats).
+**Action:** Use `.task { ... }` or `.task(id:) { ... }` instead. SwiftUI automatically cancels tasks created with `.task` when the view disappears or the `id` changes, ensuring clean, automatic resource management without manual `Task` tracking.
+
+## 2024-06-13 - Replace .onAppear { Task {} } with .task
+**Learning:** In SwiftUI, launching asynchronous tasks using `.onAppear { Task { ... } }` is a common performance anti-pattern. If the view disappears, the task continues running in the background unless explicitly tracked and cancelled, leading to memory leaks and wasted CPU cycles (e.g. infinite polling loops for container stats).
+**Action:** Use `.task { ... }` or `.task(id:) { ... }` instead. SwiftUI automatically cancels tasks created with `.task` when the view disappears or the `id` changes, ensuring clean, automatic resource management without manual `Task` tracking.
