@@ -13,3 +13,7 @@
 ## 2026-06-13 - [Memory Allocation Optimization]
 **Learning:** Using `components(separatedBy:)` with string separators in high-frequency loops (like reading from a live stats stream) allocates intermediate `Array<String>` and multiple `String` objects for each call. This can severely bottleneck performance in hot paths.
 **Action:** Use `range(of:)` to locate the substring and use `Substring` slicing (`str[..<range.lowerBound]` and `str[range.upperBound...]`) to extract sections without allocating new memory. Crucially, rely on Swift's standard library support for `Substring` parsing (e.g. `Double(substring)`) to avoid manually casting substrings back into strings, which negates the optimization.
+
+## 2024-06-15 - Shared AsyncStream in SwiftUI
+**Learning:** When multiple views (e.g., list view and detail view) subscribe to a background polling stream using a naive Set to prevent duplicate processes, the second caller returns immediately and completes its `.task`. When the first view disappears, its task cancels the shared stream, leaving the second view stranded without updates.
+**Action:** Use a reference counting system combined with a shared background `Task`. Suspend the caller's `.task` using `try? await Task.sleep(nanoseconds: UInt64.max)` to ensure the view's lifecycle correctly manages the shared stream's reference count.
