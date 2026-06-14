@@ -286,6 +286,19 @@ public class ContainerDaemon {
     }
     
     public func start(containerId: String, imageReference: String, name: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = []) async throws {
+
+        // 🛡️ Sentinel: Validate host file paths BEFORE configuration to prevent container escape
+        // We throw an error early instead of silently ignoring invalid mounts which could cause data loss.
+        let blockedPrefixes = ["/System", "/etc", "/private", "/var", "/bin", "/sbin", "/usr/bin", "/usr/sbin"]
+        for volume in volumes {
+            let resolvedHostPath = URL(fileURLWithPath: volume.host).resolvingSymlinksInPath().path
+            for blocked in blockedPrefixes {
+                if resolvedHostPath == blocked || resolvedHostPath.hasPrefix(blocked + "/") {
+                    throw NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "Security Error: Attempted to mount restricted host path \(volume.host)"])
+                }
+            }
+        }
+
         func debugLog(_ msg: String) {
             let logFile = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/daemon.log")
             let text = "[\(Date())] \(msg)\n"
@@ -351,6 +364,7 @@ public class ContainerDaemon {
             config.process.environmentVariables = envs
             
             var newMounts = LinuxContainer.defaultMounts()
+
             for volume in volumes {
                 newMounts.append(Mount.share(source: volume.host, destination: volume.container))
             }
@@ -425,6 +439,18 @@ public class ContainerDaemon {
         
         let vessel = active.vessel
         
+        // 🛡️ Sentinel: Validate host file paths BEFORE configuration to prevent container escape
+        // We throw an error early instead of silently ignoring invalid mounts which could cause data loss.
+        let blockedPrefixes = ["/System", "/etc", "/private", "/var", "/bin", "/sbin", "/usr/bin", "/usr/sbin"]
+        for volume in vessel.volumes {
+            let resolvedHostPath = URL(fileURLWithPath: volume.host).resolvingSymlinksInPath().path
+            for blocked in blockedPrefixes {
+                if resolvedHostPath == blocked || resolvedHostPath.hasPrefix(blocked + "/") {
+                    throw NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "Security Error: Attempted to mount restricted host path \(volume.host)"])
+                }
+            }
+        }
+
         // Recreate linux container if it doesn't exist
         var linux = active.linux
         var stream = active.logStream

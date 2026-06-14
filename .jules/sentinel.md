@@ -25,3 +25,8 @@
 **Vulnerability:** The project uses `Yams.load(yaml:)` which does not natively limit the expansion of YAML aliases (`*alias`). An attacker could supply a maliciously crafted YAML file with nested aliases (a "Billion Laughs" attack), causing the parser to exponentially expand the data. This leads to memory exhaustion and Denial of Service (DoS).
 **Learning:** External libraries like `Yams` may not provide built-in safeguards against entity expansion attacks out-of-the-box in the specific version or API (`load()`) being used.
 **Prevention:** Always validate and sanitize user-provided configuration files before passing them to the parser. Specifically, enforce a strict file size limit and restrict the number of aliases allowed in the file to prevent resource exhaustion.
+
+## 2024-05-24 - [Prevent Container Escape via Volume Mounts]
+**Vulnerability:** The application allowed users to define custom volume mounts for containers without validating the host paths. This could allow a malicious actor or containerized process to mount sensitive host directories (like `/System`, `/etc`, or `/private`) and escape the container environment.
+**Learning:** Container creation processes must explicitly validate and restrict host file paths to prevent privilege escalation and container escapes.
+**Prevention:** Implement a strict blocklist for sensitive host directories and resolve symlinks using `URL(fileURLWithPath:).resolvingSymlinksInPath().path` before passing the configuration to the container runtime. Fail securely by throwing an error or intentionally omitting the invalid mount if it attempts to access a restricted path.
