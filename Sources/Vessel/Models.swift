@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - Enums
-public enum VesselStatus: String, CaseIterable, Codable {
+public enum VesselStatus: String, CaseIterable, Codable, Sendable {
     case running = "running"
     case stopped = "stopped"
     case error = "error"
@@ -11,7 +11,7 @@ public enum VesselStatus: String, CaseIterable, Codable {
 }
 
 // MARK: - Models
-public struct VesselVolume: Codable, Hashable {
+public struct VesselVolume: Codable, Hashable, Sendable {
     public let host: String
     public let container: String
     
@@ -21,7 +21,7 @@ public struct VesselVolume: Codable, Hashable {
     }
 }
 
-public struct VesselPod: Identifiable, Codable, Hashable {
+public struct VesselPod: Identifiable, Codable, Hashable, Sendable {
     public let id: String
     public let name: String
     public let status: VesselStatus
@@ -40,7 +40,7 @@ public struct VesselPod: Identifiable, Codable, Hashable {
     }
 }
 
-public enum VesselWorkload: Identifiable, Hashable {
+public enum VesselWorkload: Identifiable, Hashable, Sendable {
     case container(VesselContainer)
     case pod(VesselPod)
     
@@ -59,7 +59,7 @@ public enum VesselWorkload: Identifiable, Hashable {
     }
 }
 
-public struct VesselContainer: Identifiable, Codable, Hashable {
+public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
     public let id: String
     public let name: String
     public let subtitle: String

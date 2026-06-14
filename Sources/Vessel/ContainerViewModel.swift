@@ -86,6 +86,7 @@ public class ContainerViewModel {
     
     private let daemon = ContainerDaemon()
     
+    @MainActor
     public init() {
         Task {
             await fetchInitialWorkloads()

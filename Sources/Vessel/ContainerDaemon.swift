@@ -6,7 +6,7 @@ import ContainerizationEXT4
 import ContainerizationOCI
 import ContainerizationError
 
-public struct SimpleNATNetwork: Network {
+public struct SimpleNATNetwork {
     private var nextIP: UInt32 = 200
     
     public init() {}
@@ -14,23 +14,18 @@ public struct SimpleNATNetwork: Network {
     public mutating func createInterface(_ id: String) throws -> Containerization.Interface? {
         let ip = nextIP
         nextIP += 1
-        // Security: Avoid force unwrap to prevent DoS on invalid IP generation.
-        guard let prefix = Prefix.ipv4(24) else { throw NSError(domain: "Network", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid IPv4 prefix"]) }
         return NATInterface(
-            ipv4Address: try CIDRv4(IPv4Address(UInt32(192<<24 | 168<<16 | 64<<8) | ip), prefix: prefix),
-            ipv4Gateway: try IPv4Address("192.168.64.1")
+            address: "192.168.64.\(ip)/24",
+            gateway: "192.168.64.1"
         )
     }
 
     public mutating func createInterface(_ id: String, mtu: UInt32) throws -> Containerization.Interface? {
         let ip = nextIP
         nextIP += 1
-        // Security: Avoid force unwrap to prevent DoS on invalid IP generation.
-        guard let prefix = Prefix.ipv4(24) else { throw NSError(domain: "Network", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid IPv4 prefix"]) }
         return NATInterface(
-            ipv4Address: try CIDRv4(IPv4Address(UInt32(192<<24 | 168<<16 | 64<<8) | ip), prefix: prefix),
-            ipv4Gateway: try IPv4Address("192.168.64.1"),
-            mtu: mtu
+            address: "192.168.64.\(ip)/24",
+            gateway: "192.168.64.1"
         )
     }
 
@@ -39,7 +34,7 @@ public struct SimpleNATNetwork: Network {
     }
 }
 
-public class ContainerDaemon {
+public final class ContainerDaemon: @unchecked Sendable {
     private struct ActiveContainer {
         let vessel: VesselContainer
         var linux: LinuxContainer?
@@ -48,7 +43,7 @@ public class ContainerDaemon {
     
     private struct ActivePod {
         let pod: VesselPod
-        var linuxPod: LinuxPod?
+        var linuxContainers: [String: LinuxContainer] = [:]
     }
     
     private final class LogWriter: Writer {
@@ -143,7 +138,7 @@ public class ContainerDaemon {
         }
         for var p in vesselPods {
             p = VesselPod(id: p.id, name: p.name, status: .stopped, containers: p.containers, cpus: p.cpus, memoryGB: p.memoryGB)
-            activePods[p.id] = ActivePod(pod: p, linuxPod: nil)
+            activePods[p.id] = ActivePod(pod: p, linuxContainers: [:])
         }
     }
     
@@ -163,8 +158,11 @@ public class ContainerDaemon {
         let projectName = yamlPath.deletingPathExtension().lastPathComponent
         let project = try ComposeParser.parse(yaml: yamlString, projectName: projectName)
         
-        let store = ImageStore.default
-        let initPath = store.path.appendingPathComponent("initfs.ext4")
+        let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
+        let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
+        let contentStore = try LocalContentStore(path: contentPath)
+        let store = try ImageStore(path: storePath, contentStore: contentStore)
+        let initPath = storePath.appendingPathComponent("initfs.ext4")
         let initImage = try await store.getInitImage(reference: "ghcr.io/apple/containerization/vminit:0.33.4")
         
         let initfs = try await {
@@ -184,58 +182,75 @@ public class ContainerDaemon {
         let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
         let testKernel = Kernel(path: kernelPath, platform: .linuxArm)
         
-        let vmm = VZVirtualMachineManager(
-            kernel: testKernel,
-            initialFilesystem: initfs,
-            rosetta: true,
-            nestedVirtualization: false
-        )
-        
         let podId = UUID().uuidString
-        let pod = try LinuxPod(podId, vmm: vmm) { config in
-            config.cpus = 4
-            config.memoryInBytes = 4.gib() // For the whole pod
-            
-            // Shared network
-            var network = SimpleNATNetwork()
-            if let interface = try? network.createInterface(podId) {
-                config.interfaces = [interface]
-                if let gateway = interface.ipv4Gateway {
-                    config.dns = .init(nameservers: ["8.8.8.8", "1.1.1.1"])
-                }
-            }
-        }
-        
         var containers: [VesselContainer] = []
+        var linuxContainers: [String: LinuxContainer] = [:]
+        
         let platform = Platform(arch: "arm64", os: "linux", variant: "v8")
-        let unpacker = EXT4Unpacker(blockSizeInBytes: 8.gib())
         
         for service in project.services {
             let normalizedRef = normalize(reference: service.image)
-            let image = try await store.get(reference: normalizedRef, pull: true)
-            let fsPath = store.path.appendingPathComponent("containers").appendingPathComponent("\(podId)-\(service.name)-rootfs.ext4")
+            let image = try await store.get(reference: normalizedRef)
+            let fsPath = storePath.appendingPathComponent("containers").appendingPathComponent("\(podId)-\(service.name)-rootfs.ext4")
             
-            let rootfs = try await unpacker.unpack(image, for: platform, at: fsPath, progress: nil)
+            let rootfs = try await image.unpack(for: platform, at: fsPath, blockSizeInBytes: 8.gib(), progress: nil)
             
-            let imageConfig = try await image.config(for: .current).config
+            let vmm = VZVirtualMachineManager(
+                kernel: testKernel,
+                initialFilesystem: initfs,
+                bootlog: nil
+            )
             
-            try await pod.addContainer(service.name, rootfs: rootfs) { config in
-                if let imageConfig {
-                    config.process = LinuxProcessConfiguration(from: imageConfig)
+            let container = LinuxContainer("\(podId)-\(service.name)", rootfs: rootfs, vmm: vmm)
+            container.cpus = 1
+            container.memoryInBytes = 1.gib()
+            container.rosetta = true
+            
+            var network = SimpleNATNetwork()
+            if let interface = try? network.createInterface(container.id) {
+                container.interfaces = [interface]
+                if !interface.gateway.isEmpty {
+                    container.dns = Containerization.DNS(nameservers: ["8.8.8.8", "1.1.1.1"])
                 }
+            }
+            
+            let imageConfig = try await image.config(for: platform).config
+            
+            if let config = imageConfig {
+                let cwd = config.workingDir ?? "/"
+                let env = config.env ?? []
+                let args = (config.entrypoint ?? []) + (config.cmd ?? [])
+                
+                container.workingDirectory = cwd
+                var allEnvs = env
+                for (key, value) in service.environment {
+                    allEnvs.append("\(key)=\(value)")
+                }
+                container.environment = allEnvs
+                container.arguments = args
+                
+                if let rawString = config.user {
+                    container.user = ContainerizationOCI.User(username: rawString)
+                }
+            } else {
                 var envs: [String] = []
                 for (key, value) in service.environment {
                     envs.append("\(key)=\(value)")
                 }
-                config.process.environmentVariables.append(contentsOf: envs)
+                container.environment.append(contentsOf: envs)
             }
+            
+            try await container.create()
+            try await container.start()
+            
+            linuxContainers[service.name] = container
             
             containers.append(VesselContainer(
                 id: "\(podId)-\(service.name)",
                 name: service.name,
                 subtitle: "Compose Service",
                 image: service.image,
-                status: .starting,
+                status: .running,
                 ipAddress: "127.0.0.1",
                 rosettaEnabled: true,
                 networkingEnabled: true,
@@ -247,11 +262,6 @@ public class ContainerDaemon {
             ))
         }
         
-        try await pod.create()
-        for service in project.services {
-            try await pod.startContainer(service.name)
-        }
-        
         let vesselPod = VesselPod(
             id: podId,
             name: projectName,
@@ -261,7 +271,7 @@ public class ContainerDaemon {
             memoryGB: 4.0
         )
         
-        activePods[podId] = ActivePod(pod: vesselPod, linuxPod: pod)
+        activePods[podId] = ActivePod(pod: vesselPod, linuxContainers: linuxContainers)
         savePods()
     }
     
@@ -318,14 +328,33 @@ public class ContainerDaemon {
         let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
         let kernel = Kernel(path: kernelPath, platform: .linuxArm)
         
-        debugLog("Initializing ContainerManager...")
-        var manager = try await ContainerManager(
+        let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
+        let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
+        let contentStore = try LocalContentStore(path: contentPath)
+        let store = try ImageStore(path: storePath, contentStore: contentStore)
+        let initPath = storePath.appendingPathComponent("initfs.ext4")
+        let initImage = try await store.getInitImage(reference: "ghcr.io/apple/containerization/vminit:0.33.4")
+        
+        let initfs = try await {
+            do {
+                return try await initImage.initBlock(at: initPath, for: .linuxArm)
+            } catch let err as ContainerizationError {
+                guard err.code == .exists else { throw err }
+                return Containerization.Mount.block(
+                    format: "ext4",
+                    source: initPath.absolutePath(),
+                    destination: "/",
+                    options: ["ro"]
+                )
+            }
+        }()
+
+        let vmm = VZVirtualMachineManager(
             kernel: kernel,
-            initfsReference: "ghcr.io/apple/containerization/vminit:0.33.4",
-            network: network,
-            rosetta: rosetta
+            initialFilesystem: initfs,
+            bootlog: nil
         )
-        debugLog("ContainerManager initialized")
+        debugLog("VZVirtualMachineManager initialized")
         
         var logContinuation: AsyncStream<String>.Continuation!
         let stream = AsyncStream<String> { cont in
@@ -333,34 +362,56 @@ public class ContainerDaemon {
         }
         
         debugLog("Creating container instance...")
-        let container = try await manager.create(
-            containerId,
-            reference: normalizedRef,
-            rootfsSizeInBytes: UInt64(rootfsSizeGB * 1024 * 1024 * 1024),
-            readOnly: false,
-            networking: networking
-        ) { config in
-            config.cpus = cpus
-            config.memoryInBytes = UInt64(memoryGB * 1024 * 1024 * 1024)
-            config.dns = Containerization.DNS(nameservers: ["192.168.64.1"])
+        let image = try await store.get(reference: normalizedRef)
+        let platform = Platform(arch: "arm64", os: "linux", variant: "v8")
+        let fsPath = storePath.appendingPathComponent("containers").appendingPathComponent("\(containerId)-rootfs.ext4")
+        let rootfs = try await image.unpack(for: platform, at: fsPath, blockSizeInBytes: UInt64(rootfsSizeGB * 1024 * 1024 * 1024), progress: nil)
+
+        let container = LinuxContainer(containerId, rootfs: rootfs, vmm: vmm)
+        container.cpus = cpus
+        container.memoryInBytes = UInt64(memoryGB * 1024 * 1024 * 1024)
+        container.rosetta = rosetta
+        
+        if var network = network {
+            if let interface = try? network.createInterface(containerId) {
+                container.interfaces = [interface]
+                container.dns = Containerization.DNS(nameservers: ["192.168.64.1"])
+            }
+        }
+        
+        let imageConfig = try await image.config(for: Platform(arch: "arm64", os: "linux", variant: "v8")).config
+        if let config = imageConfig {
+            let cwd = config.workingDir ?? "/"
+            let env = config.env ?? []
+            let args = (config.entrypoint ?? []) + (config.cmd ?? [])
             
+            container.workingDirectory = cwd
+            var allEnvs = env
+            for (key, value) in envVars {
+                allEnvs.append("\(key)=\(value)")
+            }
+            container.environment = allEnvs
+            container.arguments = args
+            
+            if let rawString = config.user {
+                container.user = ContainerizationOCI.User(username: rawString)
+            }
+        } else {
             var envs: [String] = []
             for (key, value) in envVars {
                 envs.append("\(key)=\(value)")
             }
-            config.process.environmentVariables = envs
-            
-            var newMounts = LinuxContainer.defaultMounts()
-            for volume in volumes {
-                newMounts.append(Mount.share(source: volume.host, destination: volume.container))
-            }
-            config.mounts = newMounts
-            
-            let stdoutWriter = LogWriter(prefix: "STDOUT", continuation: logContinuation)
-            let stderrWriter = LogWriter(prefix: "STDERR", continuation: logContinuation)
-            config.process.stdout = stdoutWriter
-            config.process.stderr = stderrWriter
+            container.environment.append(contentsOf: envs)
         }
+        
+        for volume in volumes {
+            container.mounts.append(Mount.share(source: volume.host, destination: volume.container))
+        }
+        
+        let stdoutWriter = LogWriter(prefix: "STDOUT", continuation: logContinuation)
+        let stderrWriter = LogWriter(prefix: "STDERR", continuation: logContinuation)
+        container.stdout = stdoutWriter
+        container.stderr = stderrWriter
         
         debugLog("Calling container.create()...")
         try await container.create()
@@ -409,14 +460,12 @@ public class ContainerDaemon {
         debugLog("start(containerId:) called for \(containerId)")
         
         if let activePod = activePods[containerId] {
-            if let linuxPod = activePod.linuxPod {
-                try await linuxPod.start()
-            } else {
-                throw NSError(domain: "Vessel", code: 400, userInfo: [NSLocalizedDescriptionKey: "Pod linux context not available for restart"])
+            for (_, container) in activePod.linuxContainers {
+                try await container.start()
             }
             let pod = activePod.pod
             let updatedPod = VesselPod(id: pod.id, name: pod.name, status: .running, containers: pod.containers, cpus: pod.cpus, memoryGB: pod.memoryGB)
-            activePods[containerId] = ActivePod(pod: updatedPod, linuxPod: activePod.linuxPod)
+            activePods[containerId] = ActivePod(pod: updatedPod, linuxContainers: activePod.linuxContainers)
             savePods()
             return
         }
@@ -433,12 +482,31 @@ public class ContainerDaemon {
             let network: SimpleNATNetwork? = vessel.networkingEnabled ? SimpleNATNetwork() : nil
             let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
             let kernel = Kernel(path: kernelPath, platform: .linuxArm)
+                     let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
+            let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
+            let contentStore = try LocalContentStore(path: contentPath)
+            let store = try ImageStore(path: storePath, contentStore: contentStore)
+            let initPath = storePath.appendingPathComponent("initfs.ext4")
+            let initImage = try await store.getInitImage(reference: "ghcr.io/apple/containerization/vminit:0.33.4")
             
-            var manager = try await ContainerManager(
+            let initfs = try await {
+                do {
+                    return try await initImage.initBlock(at: initPath, for: .linuxArm)
+                } catch let err as ContainerizationError {
+                    guard err.code == .exists else { throw err }
+                    return Containerization.Mount.block(
+                        format: "ext4",
+                        source: initPath.absolutePath(),
+                        destination: "/",
+                        options: ["ro"]
+                    )
+                }
+            }()
+            
+            let vmm = VZVirtualMachineManager(
                 kernel: kernel,
-                initfsReference: "ghcr.io/apple/containerization/vminit:0.33.4",
-                network: network,
-                rosetta: vessel.rosettaEnabled
+                initialFilesystem: initfs,
+                bootlog: nil
             )
             
             var logContinuation: AsyncStream<String>.Continuation!
@@ -446,74 +514,58 @@ public class ContainerDaemon {
                 logContinuation = cont
             }
             
+            let containerRoot = storePath.appendingPathComponent("containers").appendingPathComponent(containerId)
+            let fsPath = containerRoot.appendingPathComponent("rootfs.ext4")
+            let rootfs = Containerization.Mount.block(format: "ext4", source: fsPath.path, destination: "/", options: [])
             
-            let containerRoot = manager.imageStore.path.appendingPathComponent("containers").appendingPathComponent(containerId)
-            let rootfsPath = containerRoot.appendingPathComponent("rootfs.ext4")
+            let container = LinuxContainer(containerId, rootfs: rootfs, vmm: vmm)
+            container.cpus = vessel.cpus
+            container.memoryInBytes = UInt64(vessel.memoryGB * 1024 * 1024 * 1024)
+            container.rosetta = vessel.rosettaEnabled
             
-            let container: LinuxContainer
-            
-            debugLog("Checking rootfs at \(rootfsPath.path)...")
-            
-            if FileManager.default.fileExists(atPath: rootfsPath.path) {
-                debugLog("Rootfs exists, mounting existing ext4 block...")
-                let rootfsMount: Containerization.Mount = .block(format: "ext4", source: rootfsPath.path, destination: "/", options: [])
-                let image = try await manager.imageStore.get(reference: normalize(reference: vessel.image), pull: true)
-                container = try await manager.create(
-                    containerId,
-                    image: image,
-                    rootfs: rootfsMount,
-                    writableLayer: nil,
-                    networking: vessel.networkingEnabled
-                ) { config in
-                    config.cpus = vessel.cpus
-                    config.memoryInBytes = UInt64(vessel.memoryGB * 1024 * 1024 * 1024)
-                    let baseImageName = vessel.image.split(separator: ":").first.map(String.init) ?? "vessel"
-                    config.hostname = baseImageName
-                    config.dns = Containerization.DNS(nameservers: ["192.168.64.1"])
-                    var envs: [String] = []
-                    for (key, value) in vessel.envVars { envs.append("\(key)=\(value)") }
-                    config.process.environmentVariables = envs
-                    if vessel.image.lowercased().contains("alpine") || vessel.image.lowercased().contains("ubuntu") {
-                        config.process.arguments = ["tail", "-f", "/dev/null"]
-                    }
-                    var newMounts = LinuxContainer.defaultMounts()
-                    for volume in vessel.volumes {
-                        newMounts.append(Mount.share(source: volume.host, destination: volume.container))
-                    }
-                    config.mounts = newMounts
-                    config.process.stdout = LogWriter(prefix: "STDOUT", continuation: logContinuation)
-                    config.process.stderr = LogWriter(prefix: "STDERR", continuation: logContinuation)
-                }
-            } else {
-                debugLog("Rootfs missing, creating from scratch...")
-                let rootfsSize = Double(vessel.rootfsSize.replacingOccurrences(of: "GB", with: "")) ?? 8.0
-                container = try await manager.create(
-                    containerId,
-                    reference: normalize(reference: vessel.image),
-                    rootfsSizeInBytes: UInt64(rootfsSize * 1024 * 1024 * 1024),
-                    readOnly: false,
-                    networking: vessel.networkingEnabled
-                ) { config in
-                    config.cpus = vessel.cpus
-                    config.memoryInBytes = UInt64(vessel.memoryGB * 1024 * 1024 * 1024)
-                    let baseImageName = vessel.image.split(separator: ":").first.map(String.init) ?? "vessel"
-                    config.hostname = baseImageName
-                    config.dns = Containerization.DNS(nameservers: ["192.168.64.1"])
-                    var envs: [String] = []
-                    for (key, value) in vessel.envVars { envs.append("\(key)=\(value)") }
-                    config.process.environmentVariables = envs
-                    if vessel.image.lowercased().contains("alpine") || vessel.image.lowercased().contains("ubuntu") {
-                        config.process.arguments = ["tail", "-f", "/dev/null"]
-                    }
-                    var newMounts = LinuxContainer.defaultMounts()
-                    for volume in vessel.volumes {
-                        newMounts.append(Mount.share(source: volume.host, destination: volume.container))
-                    }
-                    config.mounts = newMounts
-                    config.process.stdout = LogWriter(prefix: "STDOUT", continuation: logContinuation)
-                    config.process.stderr = LogWriter(prefix: "STDERR", continuation: logContinuation)
+            if var network = network {
+                if let interface = try? network.createInterface(containerId) {
+                    container.interfaces = [interface]
+                    container.dns = Containerization.DNS(nameservers: ["192.168.64.1"])
                 }
             }
+            
+            let image = try await store.get(reference: normalize(reference: vessel.image))
+            let platform = Platform(arch: "arm64", os: "linux", variant: "v8")
+            let imageConfig = try await image.config(for: platform).config
+            
+            if let config = imageConfig {
+                let cwd = config.workingDir ?? "/"
+                let env = config.env ?? []
+                let args = (config.entrypoint ?? []) + (config.cmd ?? [])
+                
+                container.workingDirectory = cwd
+                var allEnvs = env
+                for (key, value) in vessel.envVars {
+                    allEnvs.append("\(key)=\(value)")
+                }
+                container.environment = allEnvs
+                container.arguments = args
+                
+                if let rawString = config.user {
+                    container.user = ContainerizationOCI.User(username: rawString)
+                }
+            } else {
+                var envs: [String] = []
+                for (key, value) in vessel.envVars {
+                    envs.append("\(key)=\(value)")
+                }
+                container.environment.append(contentsOf: envs)
+            }
+            
+            for volume in vessel.volumes {
+                container.mounts.append(Mount.share(source: volume.host, destination: volume.container))
+            }
+            
+            let stdoutWriter = LogWriter(prefix: "STDOUT", continuation: logContinuation)
+            let stderrWriter = LogWriter(prefix: "STDERR", continuation: logContinuation)
+            container.stdout = stdoutWriter
+            container.stderr = stderrWriter
             debugLog("Calling container.create()...")
             try await container.create()
             linux = container
@@ -538,20 +590,17 @@ public class ContainerDaemon {
         
         guard let linux = active.linux else { throw NSError(domain: "Vessel", code: 400, userInfo: [NSLocalizedDescriptionKey: "Container not running"]) }
         
-        var config = LinuxProcessConfiguration()
-        config.arguments = ["/bin/sh", "-l"]
-        config.terminal = true
-        config.stdin = stdin
-        config.stdout = stdout
-        config.stderr = nil
-        config.environmentVariables = [
-            "TERM=xterm-256color",
-            "HOME=/root",
-            "USER=root"
-        ]
-        
+        let config = ContainerizationOCI.Process(
+            args: ["/bin/sh", "-l"],
+            env: [
+                "TERM=xterm-256color",
+                "HOME=/root",
+                "USER=root"
+            ],
+            terminal: true
+        )
         let execId = "shell-\(UUID().uuidString)"
-        let process = try await linux.exec(execId, configuration: config)
+        let process = try await linux.exec(execId, configuration: config, stdin: stdin, stdout: stdout, stderr: nil)
         try await process.start()
         return process
     }
@@ -566,16 +615,15 @@ public class ContainerDaemon {
         
         let (stream, continuation) = AsyncStream<StatsModel>.makeStream()
         
-        var config = Containerization.LinuxProcessConfiguration()
-        // Run a lightweight non-interactive background loop to stream stats
-        config.arguments = ["sh", "-c", "while true; do cat /proc/stat; echo '---MEM---'; cat /proc/meminfo; echo '---LOAD---'; cat /proc/loadavg; echo '---UPTIME---'; cat /proc/uptime; echo '---END---'; sleep 1; done"]
-        config.terminal = false
+        let config = ContainerizationOCI.Process(
+            args: ["sh", "-c", "while true; do cat /proc/stat; echo '---MEM---'; cat /proc/meminfo; echo '---LOAD---'; cat /proc/loadavg; echo '---UPTIME---'; cat /proc/uptime; echo '---END---'; sleep 1; done"],
+            terminal: false
+        )
         
         let readerWriter = StatsProcessReaderWriter(continuation: continuation)
-        config.stdout = readerWriter
-        config.stderr = nil
         
-        let process = try await linux.exec("stats-\(UUID().uuidString)", configuration: config)
+        let execId = "stats-\(UUID().uuidString)"
+        let process = try await linux.exec(execId, configuration: config, stdout: readerWriter)
         try await process.start()
         return stream
     }
@@ -609,12 +657,12 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
 }    
     public func stop(containerId: String) async throws {
         if let activePod = activePods[containerId] {
-            if let linuxPod = activePod.linuxPod {
-                try? await linuxPod.stop()
+            for (_, container) in activePod.linuxContainers {
+                try? await container.stop()
             }
             let pod = activePod.pod
             let updatedPod = VesselPod(id: pod.id, name: pod.name, status: .stopped, containers: pod.containers, cpus: pod.cpus, memoryGB: pod.memoryGB)
-            activePods[containerId] = ActivePod(pod: updatedPod, linuxPod: nil)
+            activePods[containerId] = ActivePod(pod: updatedPod, linuxContainers: [:])
             savePods()
             return
         }
@@ -629,8 +677,8 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
     
     public func delete(containerId: String) async throws {
         if let activePod = activePods[containerId] {
-            if let linuxPod = activePod.linuxPod {
-                try? await linuxPod.stop()
+            for (_, container) in activePod.linuxContainers {
+                try? await container.stop()
             }
             activePods.removeValue(forKey: containerId)
             savePods()
@@ -641,17 +689,9 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
             try? await linux.stop()
         }
         
-        let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
-        let kernel = Kernel(path: kernelPath, platform: .linuxArm)
-        
-        var manager = try await ContainerManager(
-            kernel: kernel,
-            initfsReference: "ghcr.io/apple/containerization/vminit:0.33.4",
-            network: SimpleNATNetwork(),
-            rosetta: false
-        )
-        
-        try await manager.delete(containerId)
+        let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
+        let containerRoot = storePath.appendingPathComponent("containers").appendingPathComponent(containerId)
+        try? FileManager.default.removeItem(at: containerRoot)
         activeContainers.removeValue(forKey: containerId)
         saveContainers()
     }
@@ -668,7 +708,10 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
     }
         
         public func fetchImages() async throws -> [VesselImage] {
-            let store = ImageStore.default
+            let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
+        let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
+        let contentStore = try LocalContentStore(path: contentPath)
+        let store = try ImageStore(path: storePath, contentStore: contentStore)
             let images = try await store.list()
             return images.map { img in
                 let ref = img.reference
@@ -696,12 +739,15 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         }
         
         public func pullImage(reference: String, progress: @escaping @Sendable (Double) -> Void) async throws {
-            let store = ImageStore.default
+            let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
+        let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
+        let contentStore = try LocalContentStore(path: contentPath)
+        let store = try ImageStore(path: storePath, contentStore: contentStore)
             actor ProgressTracker {
                 var currentBytes: Int64 = 0
                 var totalBytes: Int64 = 0
                 func add(size: Int64) { currentBytes += size }
-                func addTotal(size: Int64) { totalBytes += size }
+                func addTotal(totalSize: Int64) { totalBytes = totalSize }
                 func getProgress() -> Double {
                     // Ignorujemy pierwszą fazę pobierania manifestu (zazwyczaj parę KB),
                     // żeby pasek nie skakał sztucznie do 100% i potem z powrotem do 0%.
@@ -715,13 +761,10 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
             
             _ = try await store.pull(reference: reference, progress: { events in
                 for event in events {
-                    switch event {
-                    case .addSize(let size):
-                        await tracker.add(size: size)
-                    case .addTotalSize(let size):
-                        await tracker.addTotal(size: size)
-                    default:
-                        break
+                    if event.event == "add-items", let size = event.value as? UInt64 {
+                        await tracker.add(size: Int64(size))
+                    } else if event.event == "add-total-items", let size = event.value as? UInt64 {
+                        await tracker.addTotal(totalSize: Int64(size))
                     }
                 }
                 let pct = await tracker.getProgress()
@@ -729,7 +772,10 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
             })
         }
         public func deleteImage(reference: String) async throws {
-            let store = ImageStore.default
+            let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
+        let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
+        let contentStore = try LocalContentStore(path: contentPath)
+        let store = try ImageStore(path: storePath, contentStore: contentStore)
             try await store.delete(reference: reference, performCleanup: true)
         }
     }

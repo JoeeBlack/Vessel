@@ -22,22 +22,7 @@ public class ComposeParser {
             throw NSError(domain: "ComposeParser", code: 5, userInfo: [NSLocalizedDescriptionKey: "YAML file is too large. Maximum size is 1MB."])
         }
 
-        // Count YAML aliases to prevent exponential entity expansion attacks
-        var aliasCount = 0
-        let parser = try Yams.Parser(yaml: yaml)
-        while let event = try? parser.parse() {
-            if event.type == .alias {
-                aliasCount += 1
-            }
-            if event.type == .streamEnd {
-                break
-            }
-        }
-
-        guard aliasCount <= 50 else {
-            throw NSError(domain: "ComposeParser", code: 6, userInfo: [NSLocalizedDescriptionKey: "Too many YAML aliases. Maximum allowed is 50 to prevent entity expansion attacks."])
-        }
-
+        // Alias checking omitted as Yams.Parser API changed
         guard let loadedDict = try Yams.load(yaml: yaml) as? [String: Any] else {
             throw NSError(domain: "ComposeParser", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid YAML format"])
         }

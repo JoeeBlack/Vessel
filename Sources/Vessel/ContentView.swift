@@ -1,5 +1,6 @@
 import SwiftUI
 import Containerization
+import ContainerizationOCI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
@@ -18,22 +19,22 @@ struct ContentView: View {
         }
     }
 
-    @State private var viewModel = ContainerViewModel()
-    @State private var selectedContainerId: String?
-    @State private var selectedSidebarItem: SidebarItem? = .containers
-    @State private var searchText: String = ""
-    @State private var showingCreateContainer = false
-    @State private var showError = false
+    @SwiftUI.State private var viewModel = ContainerViewModel()
+    @SwiftUI.State private var selectedContainerId: String?
+    @SwiftUI.State private var selectedSidebarItem: SidebarItem? = .containers
+    @SwiftUI.State private var searchText: String = ""
+    @SwiftUI.State private var showingCreateContainer = false
+    @SwiftUI.State private var showError = false
     
-    @State private var isFrameworkInstalled: Bool = {
+    @SwiftUI.State private var isFrameworkInstalled: Bool = {
         let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel")
         let installedPath = dir.appendingPathComponent("installed").path
         let kernelPath = dir.appendingPathComponent("vmlinux").path
         return FileManager.default.fileExists(atPath: installedPath) && FileManager.default.fileExists(atPath: kernelPath)
     }()
-    @State private var isInstalling = false
-    @State private var installProgress: Double = 0.0
-    @State private var installStatusMessage = ""
+    @SwiftUI.State private var isInstalling = false
+    @SwiftUI.State private var installProgress: Double = 0.0
+    @SwiftUI.State private var installStatusMessage = ""
 
     var body: some View {
         ZStack {
@@ -376,13 +377,11 @@ struct ContentView: View {
                         installStatusMessage = "Downloading initfs (Apple Containerization)..."
                     }
                     
-                    let kernel = Kernel(path: kernelPath, platform: .linuxArm)
-                    _ = try await ContainerManager(
-                        kernel: kernel,
-                        initfsReference: "ghcr.io/apple/containerization/vminit:0.33.4",
-                        network: nil,
-                        rosetta: true
-                    )
+                    let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
+                    let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
+                    let contentStore = try LocalContentStore(path: contentPath)
+                    let store = try ImageStore(path: storePath, contentStore: contentStore)
+                    _ = try await store.getInitImage(reference: "ghcr.io/apple/containerization/vminit:0.33.4")
                     
                     // Cleanup
                     try? FileManager.default.removeItem(at: tarPath)
@@ -418,7 +417,7 @@ extension View {
     }
 }
 
-class KernelDownloader: NSObject, URLSessionDownloadDelegate {
+class KernelDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     var onProgress: ((Double, Double, Double) -> Void)?
     var continuation: CheckedContinuation<URL, Error>?
     
