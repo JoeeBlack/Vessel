@@ -14,22 +14,23 @@ struct ContainersListView: View {
         GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 24)
     ]
     
+    // ⚡ Bolt Optimization: Use count(where:) instead of filter { ... }.count to avoid allocating an intermediate Array.
     var runningCount: Int { 
-        workloads.filter { 
+        workloads.count(where: {
             switch $0 {
             case .container(let c): return c.status == .running
             case .pod(let p): return p.status == .running
             }
-        }.count 
+        })
     }
     
     var stoppedCount: Int { 
-        workloads.filter { 
+        workloads.count(where: {
             switch $0 {
             case .container(let c): return c.status == .stopped
             case .pod(let p): return p.status == .stopped
             }
-        }.count 
+        })
     }
     
     var body: some View {
