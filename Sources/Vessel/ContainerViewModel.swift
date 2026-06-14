@@ -161,12 +161,12 @@ public class ContainerViewModel {
     }
     
     @MainActor
-    public func stopContainer(id: String) async {
+    public func stopContainer(id: String, force: Bool = false) async {
         loadingContainers.insert(id)
         defer { loadingContainers.remove(id) }
         
         do {
-            try await daemon.stop(containerId: id)
+            try await daemon.stop(containerId: id, force: force)
             await fetchInitialWorkloads()
         } catch {
             print("Błąd podczas zatrzymywania kontenera: \(error.localizedDescription)")

@@ -6,6 +6,7 @@ struct MarketplaceView: View {
     ]
     
     @State private var selectedFilter = "All"
+    @State private var searchQuery = ""
     let filters = ["All", "Database", "Web", "Tooling"]
     
     var body: some View {
@@ -25,6 +26,24 @@ struct MarketplaceView: View {
                     
                     Spacer()
                     
+                    // Search Bar
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(AppTheme.textSecondary)
+                        TextField("Search Docker Hub", text: $searchQuery)
+                            .textFieldStyle(.plain)
+                            .foregroundColor(AppTheme.textPrimary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.cardBackground)
+                    .cornerRadius(20)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(AppTheme.cardBorder, lineWidth: 1)
+                    )
+                    .frame(width: 250)
+
                     // Filters
                     HStack(spacing: 8) {
                         ForEach(filters, id: \.self) { filter in

@@ -5,6 +5,7 @@ import Foundation
 struct VMTerminalView: NSViewRepresentable {
     let inputHandle: FileHandle
     let outputHandle: FileHandle
+    var filterText: String = ""
     
     func makeNSView(context: Context) -> TerminalView {
         let terminalView = TerminalView()
@@ -18,6 +19,7 @@ struct VMTerminalView: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: TerminalView, context: Context) {
+        context.coordinator.filterText = filterText
     }
     
     static func dismantleNSView(_ nsView: TerminalView, coordinator: Coordinator) {
@@ -37,13 +39,29 @@ struct VMTerminalView: NSViewRepresentable {
             self.outputHandle = outputHandle
         }
         
+        var filterText: String = ""
+
         func startReading(from handle: FileHandle, into terminalView: TerminalView) {
-            handle.readabilityHandler = { [weak terminalView] fileHandle in
+            handle.readabilityHandler = { [weak self, weak terminalView] fileHandle in
+                guard let self = self else { return }
                 let data = fileHandle.availableData
                 guard !data.isEmpty, let terminal = terminalView else { return }
                 
                 DispatchQueue.main.async {
-                    let bytes = [UInt8](data)
+                    let text = String(decoding: data, as: UTF8.self)
+
+                    // 🛡️ Sentinel / Fix: Never drop stream chunks, as that permanently loses data.
+                    // For now, SwiftTerm does not have a simple built-in view-level filter that keeps history intact without complex buffer manipulation.
+                    // We feed all data to the terminal. If a filter is applied, we just highlight it using search selection if the API supports it,
+                    // or in this prototype, we only highlight incoming text but DO NOT drop non-matching text.
+                    let outText: String
+                    if !self.filterText.isEmpty, text.lowercased().contains(self.filterText.lowercased()) {
+                        outText = text.replacingOccurrences(of: self.filterText, with: "\u{1B}[43;30m\(self.filterText)\u{1B}[0m", options: .caseInsensitive)
+                    } else {
+                        outText = text
+                    }
+
+                    let bytes = [UInt8](outText.utf8)
                     terminal.feed(byteArray: bytes[...])
                 }
             }

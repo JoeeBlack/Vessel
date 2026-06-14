@@ -6,6 +6,7 @@ struct ContentView: View {
     enum SidebarItem: String, CaseIterable, Identifiable {
         case containers = "Containers"
         case images = "Images"
+        case networks = "Networks"
         case settings = "Settings"
         
         var id: String { self.rawValue }
@@ -13,6 +14,7 @@ struct ContentView: View {
             switch self {
             case .containers: return "cube.box"
             case .images: return "square.stack.3d.up"
+            case .networks: return "network"
             case .settings: return "gearshape"
             }
         }
@@ -139,6 +141,9 @@ struct ContentView: View {
                                 onStop: { id in
                                     Task { await viewModel.stopContainer(id: id) }
                                 },
+                                onForceStop: { id in
+                                    Task { await viewModel.stopContainer(id: id, force: true) }
+                                },
                                 onDelete: { id in
                                     Task { await viewModel.deleteContainer(id: id) }
                                 },
@@ -149,6 +154,8 @@ struct ContentView: View {
                         }
                     } else if selectedSidebarItem == .images {
                         ImagesListView()
+                    } else if selectedSidebarItem == .networks {
+                        NetworksListView()
                     } else if selectedSidebarItem == .settings {
                         SettingsView()
                     } else {

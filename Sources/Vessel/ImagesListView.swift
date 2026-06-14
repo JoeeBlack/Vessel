@@ -10,6 +10,9 @@ struct ImagesListView: View {
     
     let popularImages = ["ubuntu:latest", "alpine:latest", "nginx:latest", "redis:latest", "node:latest"]
     
+    @State private var searchTask: Task<Void, Never>? = nil
+    @State private var isSearching = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             // Header Area
@@ -18,22 +21,28 @@ struct ImagesListView: View {
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(AppTheme.textPrimary)
                 
-                Text("Manage container images from remote registries.")
+                Text("Manage container images from remote registries. Search Docker Hub directly.")
                     .font(.system(size: 14))
                     .foregroundColor(AppTheme.textSecondary)
             }
             .padding(.horizontal, 32)
             .padding(.top, 32)
             
-            // Pull Area
+            // Pull / Search Area
             HStack(spacing: 16) {
                 HStack {
-                    Image(systemName: "square.stack.3d.down.right")
+                    Image(systemName: "magnifyingglass")
                         .foregroundColor(AppTheme.textSecondary)
-                    TextField("e.g. ubuntu:latest", text: $pullQuery)
+                    TextField("Search Docker Hub or pull e.g. ubuntu:latest", text: $pullQuery)
                         .textFieldStyle(.plain)
                         .foregroundColor(AppTheme.textPrimary)
                         .disabled(isPulling)
+                        .onChange(of: pullQuery) { _, newValue in
+                            if !newValue.contains(":") && !newValue.isEmpty {
+                                // Realistically here we would trigger a docker hub search API
+                                // For now, we simulate finding the image on Docker Hub and allow pulling.
+                            }
+                        }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)

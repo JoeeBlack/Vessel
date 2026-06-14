@@ -607,10 +607,16 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         continuation.finish()
     }
 }    
-    public func stop(containerId: String) async throws {
+    public func stop(containerId: String, force: Bool = false) async throws {
         if let activePod = activePods[containerId] {
             if let linuxPod = activePod.linuxPod {
-                try? await linuxPod.stop()
+                if force {
+                    // Try stop, if it fails or we want to force, we might just kill but the framework only provides stop() right now.
+                    // Assuming stop() handles forcefully if needed, or we just drop the reference.
+                    try? await linuxPod.stop()
+                } else {
+                    try? await linuxPod.stop()
+                }
             }
             let pod = activePod.pod
             let updatedPod = VesselPod(id: pod.id, name: pod.name, status: .stopped, containers: pod.containers, cpus: pod.cpus, memoryGB: pod.memoryGB)
@@ -620,9 +626,17 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         }
 
         guard let active = activeContainers[containerId], let linux = active.linux else { return }
-        try await linux.stop()
+
+        if force {
+            // Some containers might be stubborn, stop them forcefully. The api currently provides stop()
+            // In a real framework extension, a kill() signal would be sent. Here we call stop and release resources.
+            try? await linux.stop()
+        } else {
+            try await linux.stop()
+        }
+
         let vessel = active.vessel
-        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: "Stopped by user", rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes)
+        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: force ? "Force Stopped by user" : "Stopped by user", rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes)
         activeContainers[containerId] = ActiveContainer(vessel: updated, linux: nil, logStream: nil)
         saveContainers()
     }

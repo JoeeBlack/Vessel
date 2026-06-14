@@ -1,5 +1,12 @@
 import SwiftUI
 
+enum SortOption: String, CaseIterable, Identifiable {
+    case name = "Name"
+    case status = "Status"
+
+    var id: String { self.rawValue }
+}
+
 struct ContainersListView: View {
     let workloads: [VesselWorkload]
     let loadingContainers: Set<String>
@@ -7,13 +14,41 @@ struct ContainersListView: View {
     var onSelect: (String) -> Void
     var onStart: (String) -> Void
     var onStop: (String) -> Void
+    var onForceStop: ((String) -> Void)? = nil
     var onDelete: (String) -> Void
     var onNewContainer: () -> Void
     
+    @AppStorage("containersListSortOption") private var sortOption: SortOption = .name
+
     let columns = [
         GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 24)
     ]
     
+    private var sortedWorkloads: [VesselWorkload] {
+        workloads.sorted { w1, w2 in
+            switch sortOption {
+            case .name:
+                return w1.name.lowercased() < w2.name.lowercased()
+            case .status:
+                let s1 = statusWeight(w1)
+                let s2 = statusWeight(w2)
+                if s1 == s2 {
+                    return w1.name.lowercased() < w2.name.lowercased()
+                }
+                return s1 < s2
+            }
+        }
+    }
+
+    private func statusWeight(_ workload: VesselWorkload) -> Int {
+        switch workload {
+        case .container(let c):
+            return c.status == .running ? 0 : 1
+        case .pod(let p):
+            return p.status == .running ? 0 : 1
+        }
+    }
+
     // ⚡ Bolt Optimization: Use count(where:) instead of filter { ... }.count to avoid allocating an intermediate Array.
     var runningCount: Int { 
         workloads.count(where: {
@@ -37,22 +72,27 @@ struct ContainersListView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 // Header Area
-                HStack {
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Containers")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundColor(AppTheme.textPrimary)
+
+                        Text("\(runningCount) Running • \(workloads.count) Total")
+                            .font(.system(size: 14))
+                            .foregroundColor(AppTheme.textSecondary)
+                    }
+
                     Spacer()
                     
-                    Button(action: {}) {
-                        HStack {
-                            Image(systemName: "line.3.horizontal.decrease")
-                            Text("Filter")
+                    Picker("Sort by", selection: $sortOption) {
+                        ForEach(SortOption.allCases) { option in
+                            Text(option.rawValue).tag(option)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(AppTheme.cardBackground)
-                        .foregroundColor(AppTheme.textPrimary)
-                        .overlay(RoundedRectangle(cornerRadius: 20).stroke(AppTheme.cardBorder, lineWidth: 1))
-                        .cornerRadius(20)
                     }
-                    .buttonStyle(.plain)
+                    .pickerStyle(SegmentedPickerStyle())
+                    .frame(width: 150)
+                    .padding(.trailing, 16)
                     
                     Button(action: onNewContainer) {
                         HStack {
@@ -71,7 +111,7 @@ struct ContainersListView: View {
                 
                 // Cards Grid
                 LazyVGrid(columns: columns, spacing: 24) {
-                    ForEach(workloads) { workload in
+                    ForEach(sortedWorkloads) { workload in
                         switch workload {
                         case .container(let container):
                             ContainerCardView(
@@ -80,6 +120,7 @@ struct ContainersListView: View {
                                 viewModel: viewModel,
                                 onStart: { onStart(container.id) },
                                 onStop: { onStop(container.id) },
+                                onForceStop: { onForceStop?(container.id) ?? onStop(container.id) },
                                 onDelete: { onDelete(container.id) }
                             )
                             .onTapGesture {
@@ -93,7 +134,8 @@ struct ContainersListView: View {
                                 isLoading: loadingContainers.contains(pod.id),
                                 viewModel: viewModel,
                                 onStart: { onStart(pod.id) },
-                                onStop: { onStop(pod.id) }
+                                onStop: { onStop(pod.id) },
+                                onForceStop: { onForceStop?(pod.id) ?? onStop(pod.id) }
                             )
                             .onTapGesture {
                                 onSelect(pod.id)
@@ -148,6 +190,7 @@ struct ContainerCardView: View {
     var viewModel: ContainerViewModel
     let onStart: () -> Void
     let onStop: () -> Void
+    var onForceStop: (() -> Void)? = nil
     let onDelete: () -> Void
     
     @State private var isAnimatingOverlay: Bool = false
@@ -269,6 +312,23 @@ struct ContainerCardView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(isLoading)
+
+                    if let onForceStop = onForceStop {
+                        Button(action: onForceStop) {
+                            HStack {
+                                Image(systemName: "exclamationmark.square.fill")
+                                    .font(.system(size: 10))
+                                Text("Force Stop")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(AppTheme.mainBackgroundTop)
+                            .foregroundColor(.orange)
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isLoading)
+                    }
                 } else {
                     Button(action: onStart) {
                         HStack {
