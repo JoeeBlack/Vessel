@@ -30,7 +30,7 @@ struct VMTerminalView: NSViewRepresentable {
         Coordinator(inputHandle: inputHandle, outputHandle: outputHandle)
     }
     
-    class Coordinator: NSObject, TerminalViewDelegate {
+    class Coordinator: NSObject, TerminalViewDelegate, @unchecked Sendable {
         let inputHandle: FileHandle
         let outputHandle: FileHandle
         
