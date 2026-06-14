@@ -29,3 +29,8 @@
 **Vulnerability:** The application was not utilizing hardened container configurations similar to those found in security-focused Linux distributions like Kicksecure, specifically missing protections against process listing.
 **Learning:** Container environments can be further hardened by adopting features from high-security distributions. A key feature of Kicksecure is the use of `hidepid=2` for the `/proc` filesystem, which prevents users within the container from enumerating processes they do not own, thus mitigating information disclosure and aiding in defense-in-depth.
 **Prevention:** Explicitly append a custom `/proc` mount with the `hidepid=2` option during the container configuration phase before `container.start()` is invoked.
+
+## 2024-05-24 - [Prevent Container Escape via Volume Mounts]
+**Vulnerability:** The application allowed users to define custom volume mounts for containers without validating the host paths. This could allow a malicious actor or containerized process to mount sensitive host directories (like `/System`, `/etc`, or `/private`) and escape the container environment.
+**Learning:** Container creation processes must explicitly validate and restrict host file paths to prevent privilege escalation and container escapes.
+**Prevention:** Implement a strict blocklist for sensitive host directories and resolve symlinks using `URL(fileURLWithPath:).resolvingSymlinksInPath().path` before passing the configuration to the container runtime. Fail securely by throwing an error or intentionally omitting the invalid mount if it attempts to access a restricted path.
