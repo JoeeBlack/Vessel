@@ -2,10 +2,14 @@
 **Learning:** In SwiftUI, launching asynchronous tasks using `.onAppear { Task { ... } }` is a common performance anti-pattern. If the view disappears, the task continues running in the background unless explicitly tracked and cancelled, leading to memory leaks and wasted CPU cycles (e.g. infinite polling loops for container stats).
 **Action:** Use `.task { ... }` or `.task(id:) { ... }` instead. SwiftUI automatically cancels tasks created with `.task` when the view disappears or the `id` changes, ensuring clean, automatic resource management without manual `Task` tracking.
 
-## 2024-06-13 - Replace .onAppear { Task {} } with .task
-**Learning:** In SwiftUI, launching asynchronous tasks using `.onAppear { Task { ... } }` is a common performance anti-pattern. If the view disappears, the task continues running in the background unless explicitly tracked and cancelled, leading to memory leaks and wasted CPU cycles (e.g. infinite polling loops for container stats).
-**Action:** Use `.task { ... }` or `.task(id:) { ... }` instead. SwiftUI automatically cancels tasks created with `.task` when the view disappears or the `id` changes, ensuring clean, automatic resource management without manual `Task` tracking.
-
 ## 2024-06-14 - Replace .filter { ... }.count with .count(where: ...)
 **Learning:** In Swift, calling `.filter { ... }.count` evaluates the closure for all elements and allocates an entirely new array just to calculate its size. This wastes memory and CPU cycles, especially for large collections or code evaluated frequently (like computed properties in SwiftUI views). Swift provides `.count(where:)` which counts matching elements in a single pass without allocating any intermediate collections.
 **Action:** Always prefer `.count(where:)` over `.filter { ... }.count` to efficiently count elements that match a predicate in O(N) time with O(1) space.
+
+## 2024-06-18 - SwiftUI View lifecycle with expensive subscriptions
+**Learning:** In SwiftUI, `onAppear` or multiple views rendering the same model state can easily trigger background tasks redundantly. In `ContainerViewModel`, this caused multiple instances of `sh` executing inside the container VM just to fetch stats.
+**Action:** When a method creates a long-running streaming subscription (especially background shells/processes), always use a tracking structure (like `Set`) in the ViewModel alongside `defer { tracking.remove(id) }` to prevent redundant overlapping streams on the same target.
+
+## 2026-06-13 - [Memory Allocation Optimization]
+**Learning:** Using `components(separatedBy:)` with string separators in high-frequency loops (like reading from a live stats stream) allocates intermediate `Array<String>` and multiple `String` objects for each call. This can severely bottleneck performance in hot paths.
+**Action:** Use `range(of:)` to locate the substring and use `Substring` slicing (`str[..<range.lowerBound]` and `str[range.upperBound...]`) to extract sections without allocating new memory. Crucially, rely on Swift's standard library support for `Substring` parsing (e.g. `Double(substring)`) to avoid manually casting substrings back into strings, which negates the optimization.
