@@ -80,7 +80,11 @@ public class ContainerViewModel {
     public var shellOutputPipes: [String: Pipe] = [:]
     public var publishedStats: [String: StatsModel] = [:]
     private var shellProcesses: [String: LinuxProcess] = [:]
-    private var activeStatsSubscriptions: Set<String> = []
+
+    // ⚡ Bolt Optimization: Use reference counting to share a single background stats stream
+    // across multiple views without dropping updates when one view disappears.
+    private var activeStatsSubscriptionCounts: [String: Int] = [:]
+    private var activeStatsTasks: [String: Task<Void, Never>] = [:]
     
     public var errorMessage: String? = nil
     
@@ -241,22 +245,40 @@ public class ContainerViewModel {
     
     @MainActor
     public func subscribeToStats(for id: String) async {
-        // ⚡ Bolt Optimization: Prevent redundant stats polling processes.
-        // SwiftUI's `onAppear` or multiple views might trigger this repeatedly.
-        // This Set prevents spawning multiple background `sh` loop processes
-        // inside the VM for the same container, saving significant CPU/Memory overhead.
-        if activeStatsSubscriptions.contains(id) { return }
-        activeStatsSubscriptions.insert(id)
-        defer { activeStatsSubscriptions.remove(id) }
+        // ⚡ Bolt Optimization: Prevent redundant stats polling processes while supporting multiple subscribers.
+        // Multiple views (like ContainersListView and ContainerDetailView) can request stats concurrently.
+        // Reference count the subscriptions and share a single background task per container.
+        let currentCount = activeStatsSubscriptionCounts[id] ?? 0
+        activeStatsSubscriptionCounts[id] = currentCount + 1
 
-        do {
-            let stream = try await daemon.startStatsStream(containerId: id)
-            for await model in stream {
-                self.publishedStats[id] = model
+        defer {
+            let newCount = (activeStatsSubscriptionCounts[id] ?? 1) - 1
+            if newCount <= 0 {
+                activeStatsSubscriptionCounts.removeValue(forKey: id)
+                activeStatsTasks[id]?.cancel()
+                activeStatsTasks.removeValue(forKey: id)
+            } else {
+                activeStatsSubscriptionCounts[id] = newCount
             }
-        } catch {
-            viewModelLog("Failed to subscribe to stats for \(id): \(error)")
         }
+
+        if activeStatsTasks[id] == nil {
+            activeStatsTasks[id] = Task { [weak self] in
+                guard let self = self else { return }
+                do {
+                    let stream = try await daemon.startStatsStream(containerId: id)
+                    for await model in stream {
+                        await MainActor.run { self.publishedStats[id] = model }
+                    }
+                } catch {
+                    viewModelLog("Failed to subscribe to stats for \(id): \(error)")
+                }
+            }
+        }
+
+        // Suspend the caller indefinitely so its `.task` remains active.
+        // When the view disappears, this `Task.sleep` is cancelled, triggering the `defer` block.
+        try? await Task.sleep(nanoseconds: UInt64.max)
     }
 
     @MainActor
