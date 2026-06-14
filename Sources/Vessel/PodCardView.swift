@@ -6,6 +6,7 @@ struct PodCardView: View {
     var viewModel: ContainerViewModel
     var onStart: () -> Void
     var onStop: () -> Void
+    var onForceStop: (() -> Void)? = nil
     
     @State private var isHovering = false
     
@@ -127,6 +128,23 @@ struct PodCardView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading || pod.status == .creating)
+
+                if isRunning, let onForceStop = onForceStop {
+                    Button(action: onForceStop) {
+                        HStack {
+                            Image(systemName: "exclamationmark.square.fill")
+                            Text("Force Stop")
+                                .fontWeight(.medium)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.1))
+                        .foregroundColor(.orange)
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isLoading)
+                }
             }
         }
         .padding(20)

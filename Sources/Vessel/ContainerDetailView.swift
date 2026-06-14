@@ -5,6 +5,8 @@ struct ContainerDetailView: View {
     let container: VesselContainer
     var viewModel: ContainerViewModel
     
+    @State private var logSearchText = ""
+
     // Mock data for charts
     let cpuData: [Double] = [2, 3, 5, 4, 8, 12, 14, 10, 5, 8, 14.2, 10]
     let memData: [Double] = [0.8, 0.8, 0.85, 0.9, 0.95, 1.0, 1.1, 1.15, 1.2, 1.2, 1.2, 1.2]
@@ -137,8 +139,25 @@ struct ContainerDetailView: View {
                                 .font(.system(size: 16, weight: .bold, design: .serif))
                                 .foregroundColor(AppTheme.textPrimary)
                             Spacer()
+
+                            // Log Search
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundColor(AppTheme.textSecondary)
+                                TextField("Filter logs...", text: $logSearchText)
+                                    .textFieldStyle(.plain)
+                                    .foregroundColor(AppTheme.textPrimary)
+                                    .frame(width: 150)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(AppTheme.cardBackground)
+                            .cornerRadius(8)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.cardBorder, lineWidth: 1))
+
                             Image(systemName: "line.3.horizontal.decrease")
                                 .foregroundColor(AppTheme.textSecondary)
+                                .padding(.leading, 8)
                             Image(systemName: "arrow.down.to.line")
                                 .foregroundColor(AppTheme.textSecondary)
                                 .padding(.leading, 12)
@@ -157,7 +176,8 @@ struct ContainerDetailView: View {
                             
                             VMTerminalView(
                                 inputHandle: inputPipe.fileHandleForWriting,
-                                outputHandle: outputPipe.fileHandleForReading
+                                outputHandle: outputPipe.fileHandleForReading,
+                                filterText: logSearchText
                             )
                             .padding(.horizontal, 8)
                             .padding(.bottom, 8)
