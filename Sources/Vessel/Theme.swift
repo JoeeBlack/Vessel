@@ -30,4 +30,20 @@ public struct AppTheme {
     
     // Terminal
     public static let darkTerminalBackground = Color(red: 80/255, green: 80/255, blue: 80/255)
+
+    // Domains
+    public static func color(for domain: VesselDomain) -> Color {
+        switch domain {
+        case .generic:
+            return Color.clear
+        case .personal:
+            return Color.blue
+        case .work:
+            return Color.orange
+        case .development:
+            return Color.green
+        case .untrusted:
+            return Color.red
+        }
+    }
 }

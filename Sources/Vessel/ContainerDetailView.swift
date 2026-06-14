@@ -17,6 +17,13 @@ struct ContainerDetailView: View {
                 
                 // Header Area
                 HStack(alignment: .center) {
+                    if container.domain != .generic {
+                        Rectangle()
+                            .fill(AppTheme.color(for: container.domain))
+                            .frame(width: 6, height: 48)
+                            .cornerRadius(3)
+                    }
+
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .firstTextBaseline, spacing: 16) {
                             Text(container.name)
