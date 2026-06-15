@@ -404,6 +404,11 @@ public final class ContainerDaemon: @unchecked Sendable {
             container.environment.append(contentsOf: envs)
         }
         
+        // 🛡️ Sentinel: Borrow 'hidepid=2' from Kicksecure to harden the container environment.
+        // Mounting /proc with hidepid=2 prevents users within the container from seeing processes
+        // owned by other users, mitigating information disclosure.
+        container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev", "hidepid=2"]))
+
         for volume in volumes {
             container.mounts.append(Mount.share(source: volume.host, destination: volume.container))
         }
@@ -558,6 +563,11 @@ public final class ContainerDaemon: @unchecked Sendable {
                 container.environment.append(contentsOf: envs)
             }
             
+            // 🛡️ Sentinel: Borrow 'hidepid=2' from Kicksecure to harden the container environment.
+            // Mounting /proc with hidepid=2 prevents users within the container from seeing processes
+            // owned by other users, mitigating information disclosure.
+            container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev", "hidepid=2"]))
+
             for volume in vessel.volumes {
                 container.mounts.append(Mount.share(source: volume.host, destination: volume.container))
             }
