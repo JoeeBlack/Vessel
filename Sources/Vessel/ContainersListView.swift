@@ -194,6 +194,8 @@ struct ContainerCardView: View {
     let onDelete: () -> Void
     
     @State private var isAnimatingOverlay: Bool = false
+    @AppStorage("enableHaptics") private var enableHaptics: Bool = true
+    @State private var hapticTrigger: Int = 0
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -335,7 +337,10 @@ struct ContainerCardView: View {
             // Actions
             HStack(spacing: 12) {
                 if container.status == .running {
-                    Button(action: onStop) {
+                    Button(action: {
+                        hapticTrigger += 1
+                        onStop()
+                    }) {
                         HStack {
                             Image(systemName: "square.fill")
                                 .font(.system(size: 10))
@@ -349,9 +354,13 @@ struct ContainerCardView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(isLoading)
+                    .sensoryFeedback(.impact, trigger: hapticTrigger) { _, _ in enableHaptics }
 
                     if let onForceStop = onForceStop {
-                        Button(action: onForceStop) {
+                        Button(action: {
+                            hapticTrigger += 1
+                            onForceStop()
+                        }) {
                             HStack {
                                 Image(systemName: "exclamationmark.square.fill")
                                     .font(.system(size: 10))
@@ -365,9 +374,13 @@ struct ContainerCardView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(isLoading)
+                        .sensoryFeedback(.impact, trigger: hapticTrigger) { _, _ in enableHaptics }
                     }
                 } else {
-                    Button(action: onStart) {
+                    Button(action: {
+                        hapticTrigger += 1
+                        onStart()
+                    }) {
                         HStack {
                             Image(systemName: "play.fill")
                                 .font(.system(size: 10))
@@ -381,9 +394,13 @@ struct ContainerCardView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(isLoading)
+                    .sensoryFeedback(.impact, trigger: hapticTrigger) { _, _ in enableHaptics }
                 }
                 
-                Button(action: onDelete) {
+                Button(action: {
+                    hapticTrigger += 1
+                    onDelete()
+                }) {
                     HStack {
                         Image(systemName: "trash.fill")
                             .font(.system(size: 10))
@@ -397,6 +414,7 @@ struct ContainerCardView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading)
+                .sensoryFeedback(.impact, trigger: hapticTrigger) { _, _ in enableHaptics }
             }
         }
         .padding(20)

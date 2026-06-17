@@ -6,6 +6,8 @@ struct ContainerDetailView: View {
     var viewModel: ContainerViewModel
     
     @State private var logSearchText = ""
+    @AppStorage("enableHaptics") private var enableHaptics: Bool = true
+    @State private var hapticTrigger: Int = 0
 
     // Mock data for charts
     let cpuData: [Double] = [2, 3, 5, 4, 8, 12, 14, 10, 5, 8, 14.2, 10]
@@ -58,6 +60,7 @@ struct ContainerDetailView: View {
                     // Actions
                     HStack(spacing: 16) {
                         Button(action: {
+                            hapticTrigger += 1
                             Task {
                                 if isRunning {
                                     await viewModel.stopContainer(id: container.id)
@@ -87,8 +90,10 @@ struct ContainerDetailView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(isLoading)
+                        .sensoryFeedback(.impact, trigger: hapticTrigger) { _, _ in enableHaptics }
                         
                         Button(action: {
+                            hapticTrigger += 1
                             Task {
                                 await viewModel.stopContainer(id: container.id)
                                 await viewModel.startContainer(id: container.id)
@@ -109,6 +114,7 @@ struct ContainerDetailView: View {
                         .buttonStyle(.plain)
                         .disabled(!isRunning || isLoading)
                         .opacity(isRunning ? 1.0 : 0.5)
+                        .sensoryFeedback(.impact, trigger: hapticTrigger) { _, _ in enableHaptics }
                         
                         Button(action: {
                             Task {

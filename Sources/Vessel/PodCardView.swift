@@ -9,6 +9,8 @@ struct PodCardView: View {
     var onForceStop: (() -> Void)? = nil
     
     @State private var isHovering = false
+    @AppStorage("enableHaptics") private var enableHaptics: Bool = true
+    @State private var hapticTrigger: Int = 0
     
     var isRunning: Bool { pod.status == .running }
     
@@ -103,6 +105,7 @@ struct PodCardView: View {
             // Actions
             HStack(spacing: 12) {
                 Button(action: {
+                    hapticTrigger += 1
                     if isRunning {
                         onStop()
                     } else {
@@ -128,9 +131,13 @@ struct PodCardView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading || pod.status == .creating)
+                .sensoryFeedback(.impact, trigger: hapticTrigger) { _, _ in enableHaptics }
 
                 if isRunning, let onForceStop = onForceStop {
-                    Button(action: onForceStop) {
+                    Button(action: {
+                        hapticTrigger += 1
+                        onForceStop()
+                    }) {
                         HStack {
                             Image(systemName: "exclamationmark.square.fill")
                             Text("Force Stop")
@@ -144,6 +151,7 @@ struct PodCardView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(isLoading)
+                    .sensoryFeedback(.impact, trigger: hapticTrigger) { _, _ in enableHaptics }
                 }
             }
         }
