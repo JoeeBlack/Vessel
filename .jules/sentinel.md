@@ -34,3 +34,7 @@
 **Vulnerability:** The application allowed users to define custom volume mounts for containers without validating the host paths. This could allow a malicious actor or containerized process to mount sensitive host directories (like `/System`, `/etc`, or `/private`) and escape the container environment.
 **Learning:** Container creation processes must explicitly validate and restrict host file paths to prevent privilege escalation and container escapes.
 **Prevention:** Implement a strict blocklist for sensitive host directories and resolve symlinks using `URL(fileURLWithPath:).resolvingSymlinksInPath().path` before passing the configuration to the container runtime. Fail securely by throwing an error or intentionally omitting the invalid mount if it attempts to access a restricted path.
+## 2024-05-18 - Hardening /proc with hidepid=2 in Compose Containers
+**Vulnerability:** Information Disclosure
+**Learning:** Container processes by default can access information about all other processes running in the same container by reading `/proc`.
+**Prevention:** Always mount `/proc` with `hidepid=2` (along with `nosuid`, `noexec`, and `nodev`) to ensure users can only see their own processes. Ensure this policy is consistently applied across all container creation pathways (e.g., standalone and Compose setups).
