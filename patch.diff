@@ -1,0 +1,189 @@
+--- ./Sources/Vessel/ContainerDetailView.swift
++++ ./Sources/Vessel/ContainerDetailView.swift
+@@ -236,38 +236,25 @@
+                         .font(.system(size: 12, weight: .semibold))
+                         .foregroundColor(AppTheme.textSecondary)
+
+-                    Chart {
+-                        ForEach(statsHistory, id: \.timestamp) { stat in
+-                            let avgCpu = stat.cpuUsages.isEmpty ? 0 : stat.cpuUsages.reduce(0, +) / Double(stat.cpuUsages.count)
+-                            LineMark(
+-                                x: .value("Time", stat.timestamp),
+-                                y: .value("CPU", avgCpu * 100)
+-                            )
+-                            .foregroundStyle(AppTheme.runningGreen)
+-                            .interpolationMethod(.catmullRom)
+-
+-                            AreaMark(
+-                                x: .value("Time", stat.timestamp),
+-                                y: .value("CPU", avgCpu * 100)
+-                            )
+-                            .foregroundStyle(LinearGradient(colors: [AppTheme.runningGreen.opacity(0.3), Color.clear], startPoint: .top, endPoint: .bottom))
+-                            .interpolationMethod(.catmullRom)
+-                        }
++                    let cpuData = statsHistory.map { stat -> Double in
++                        stat.cpuUsages.isEmpty ? 0 : stat.cpuUsages.reduce(0, +) / Double(stat.cpuUsages.count) * 100
+                     }
+-                    .chartYScale(domain: 0...100)
+-                    .chartXAxis(.hidden)
+-                    .chartYAxis {
+-                        AxisMarks(position: .leading, values: [0, 50, 100]) { value in
+-                            AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4]))
+-                            AxisTick()
+-                            AxisValueLabel {
+-                                if let intValue = value.as(Int.self) {
+-                                    Text("\(intValue)%")
+-                                        .font(.system(size: 10))
+-                                        .foregroundColor(AppTheme.textSecondary)
+-                                }
+-                            }
++
++                    HStack {
++                        VStack(alignment: .trailing) {
++                            Text("100%").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
++                            Spacer()
++                            Text("50%").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
++                            Spacer()
++                            Text("0%").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
+                         }
++                        .frame(width: 30)
++
++                        CanvasLineChart(
++                            dataSets: [cpuData],
++                            colors: [AppTheme.runningGreen],
++                            yMax: 100
++                        )
+                     }
+                     .frame(height: 120)
+                 }
+@@ -278,38 +265,24 @@
+                         .font(.system(size: 12, weight: .semibold))
+                         .foregroundColor(AppTheme.textSecondary)
+
+-                    Chart {
+-                        ForEach(statsHistory, id: \.timestamp) { stat in
+-                            let memMB = Double(stat.memUsedBytes) / 1024 / 1024
+-                            LineMark(
+-                                x: .value("Time", stat.timestamp),
+-                                y: .value("Memory", memMB)
+-                            )
+-                            .foregroundStyle(Color.cyan)
+-                            .interpolationMethod(.catmullRom)
+-
+-                            AreaMark(
+-                                x: .value("Time", stat.timestamp),
+-                                y: .value("Memory", memMB)
+-                            )
+-                            .foregroundStyle(LinearGradient(colors: [Color.cyan.opacity(0.3), Color.clear], startPoint: .top, endPoint: .bottom))
+-                            .interpolationMethod(.catmullRom)
++                    let memData = statsHistory.map { Double($0.memUsedBytes) / 1024 / 1024 }
++                    let memMax = currentStats.memTotalBytes > 0 ? Double(currentStats.memTotalBytes) / 1024 / 1024 : 1000.0
++
++                    HStack {
++                        VStack(alignment: .trailing) {
++                            Text(String(format: "%.0fM", memMax)).font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
++                            Spacer()
++                            Text(String(format: "%.0fM", memMax / 2)).font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
++                            Spacer()
++                            Text("0M").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
+                         }
+-                    }
+-                    .chartYScale(domain: 0...(currentStats.memTotalBytes > 0 ? Double(currentStats.memTotalBytes) / 1024 / 1024 : 1000))
+-                    .chartXAxis(.hidden)
+-                    .chartYAxis {
+-                        AxisMarks(position: .leading) { value in
+-                            AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4]))
+-                            AxisTick()
+-                            AxisValueLabel {
+-                                if let val = value.as(Double.self) {
+-                                    Text(String(format: "%.0fM", val))
+-                                        .font(.system(size: 10))
+-                                        .foregroundColor(AppTheme.textSecondary)
+-                                }
+-                            }
+-                        }
++                        .frame(width: 40)
++
++                        CanvasLineChart(
++                            dataSets: [memData],
++                            colors: [Color.cyan],
++                            yMax: memMax
++                        )
+                     }
+                     .frame(height: 120)
+                 }
+@@ -320,45 +293,40 @@
+                         .font(.system(size: 12, weight: .semibold))
+                         .foregroundColor(AppTheme.textSecondary)
+
+-                    Chart {
+-                        ForEach(statsHistory, id: \.timestamp) { stat in
+-                            let rxMB = Double(stat.netRxDelta) / 1024 / 1024
+-                            let txMB = Double(stat.netTxDelta) / 1024 / 1024
+-
+-                            LineMark(
+-                                x: .value("Time", stat.timestamp),
+-                                y: .value("Traffic", rxMB)
+-                            )
+-                            .foregroundStyle(by: .value("Type", "RX"))
+-                            .interpolationMethod(.catmullRom)
+-
+-                            LineMark(
+-                                x: .value("Time", stat.timestamp),
+-                                y: .value("Traffic", txMB)
+-                            )
+-                            .foregroundStyle(by: .value("Type", "TX"))
+-                            .interpolationMethod(.catmullRom)
++                    let rxData = statsHistory.map { Double($0.netRxDelta) / 1024 / 1024 }
++                    let txData = statsHistory.map { Double($0.netTxDelta) / 1024 / 1024 }
++                    let maxNet = max((rxData + txData).max() ?? 1.0, 1.0)
++
++                    HStack {
++                        VStack(alignment: .trailing) {
++                            Text(String(format: "%.1fM/s", maxNet)).font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
++                            Spacer()
++                            Text(String(format: "%.1fM/s", maxNet / 2)).font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
++                            Spacer()
++                            Text("0M/s").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
+                         }
+-                    }
+-                    .chartForegroundStyleScale([
+-                        "RX": Color.green,
+-                        "TX": Color.orange
+-                    ])
+-                    .chartXAxis(.hidden)
+-                    .chartYAxis {
+-                        AxisMarks(position: .leading) { value in
+-                            AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4]))
+-                            AxisTick()
+-                            AxisValueLabel {
+-                                if let val = value.as(Double.self) {
+-                                    Text(String(format: "%.1fM/s", val))
+-                                        .font(.system(size: 10))
+-                                        .foregroundColor(AppTheme.textSecondary)
++                        .frame(width: 40)
++
++                        VStack {
++                            CanvasLineChart(
++                                dataSets: [rxData, txData],
++                                colors: [Color.green, Color.orange],
++                                yMax: maxNet
++                            )
++
++                            // Legend
++                            HStack(spacing: 12) {
++                                HStack(spacing: 4) {
++                                    Circle().fill(Color.green).frame(width: 8, height: 8)
++                                    Text("RX").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
++                                }
++                                HStack(spacing: 4) {
++                                    Circle().fill(Color.orange).frame(width: 8, height: 8)
++                                    Text("TX").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
+                                 }
+                             }
+                         }
+                     }
+-                    .chartLegend(position: .bottom, alignment: .leading)
+                     .frame(height: 120)
+                 }
+             }

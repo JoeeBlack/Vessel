@@ -21,3 +21,6 @@
 ## 2024-06-16 - macOS 15 Build Issue with AT_RESOLVE_BENEATH in Swift System 1.7.2
 **Learning:** The Swift System library version 1.7.2 introduced a reference to `AT_RESOLVE_BENEATH`, which has availability constraints requiring macOS 26+ (or macOS 16, typically not macOS 15.0). As a result, compiling Vessel on macOS-latest (macOS 15) fails with 'cannot find AT_RESOLVE_BENEATH in scope'.
 **Action:** Pin the `swift-system` dependency to exactly `1.7.1` in `Package.swift` to bypass the availability error.
+## 2024-10-24 - Canvas Line Charts for Live Metrics
+**Learning:** SwiftUI `Chart` elements (View Diffing) can drop frames when performing high-frequency updates (e.g. 100ms) for live monitoring, whereas `Canvas` API drawing directly via Metal avoids view diffing stutter entirely, exactly like Activity Monitor does on macOS.
+**Action:** Replace `Chart` in live data displays (like Container detail performance curves) with a lightweight, manual `Canvas` equivalent to retain high refresh rates without impacting the main thread render cycle.

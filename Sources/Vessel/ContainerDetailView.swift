@@ -1,5 +1,5 @@
 import SwiftUI
-import Charts
+
 
 struct ContainerDetailView: View {
     let container: VesselContainer
@@ -236,38 +236,25 @@ struct ContainerDetailView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(AppTheme.textSecondary)
 
-                    Chart {
-                        ForEach(statsHistory, id: \.timestamp) { stat in
-                            let avgCpu = stat.cpuUsages.isEmpty ? 0 : stat.cpuUsages.reduce(0, +) / Double(stat.cpuUsages.count)
-                            LineMark(
-                                x: .value("Time", stat.timestamp),
-                                y: .value("CPU", avgCpu * 100)
-                            )
-                            .foregroundStyle(AppTheme.runningGreen)
-                            .interpolationMethod(.catmullRom)
-
-                            AreaMark(
-                                x: .value("Time", stat.timestamp),
-                                y: .value("CPU", avgCpu * 100)
-                            )
-                            .foregroundStyle(LinearGradient(colors: [AppTheme.runningGreen.opacity(0.3), Color.clear], startPoint: .top, endPoint: .bottom))
-                            .interpolationMethod(.catmullRom)
-                        }
+                    let cpuData = statsHistory.map { stat -> Double in
+                        stat.cpuUsages.isEmpty ? 0 : stat.cpuUsages.reduce(0, +) / Double(stat.cpuUsages.count) * 100
                     }
-                    .chartYScale(domain: 0...100)
-                    .chartXAxis(.hidden)
-                    .chartYAxis {
-                        AxisMarks(position: .leading, values: [0, 50, 100]) { value in
-                            AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4]))
-                            AxisTick()
-                            AxisValueLabel {
-                                if let intValue = value.as(Int.self) {
-                                    Text("\(intValue)%")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(AppTheme.textSecondary)
-                                }
-                            }
+
+                    HStack {
+                        VStack(alignment: .trailing) {
+                            Text("100%").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
+                            Spacer()
+                            Text("50%").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
+                            Spacer()
+                            Text("0%").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
                         }
+                        .frame(width: 30)
+
+                        CanvasLineChart(
+                            dataSets: [cpuData],
+                            colors: [AppTheme.runningGreen],
+                            yMax: 100
+                        )
                     }
                     .frame(height: 120)
                 }
@@ -278,38 +265,24 @@ struct ContainerDetailView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(AppTheme.textSecondary)
                     
-                    Chart {
-                        ForEach(statsHistory, id: \.timestamp) { stat in
-                            let memMB = Double(stat.memUsedBytes) / 1024 / 1024
-                            LineMark(
-                                x: .value("Time", stat.timestamp),
-                                y: .value("Memory", memMB)
-                            )
-                            .foregroundStyle(Color.cyan)
-                            .interpolationMethod(.catmullRom)
+                    let memData = statsHistory.map { Double($0.memUsedBytes) / 1024 / 1024 }
+                    let memMax = currentStats.memTotalBytes > 0 ? Double(currentStats.memTotalBytes) / 1024 / 1024 : 1000.0
 
-                            AreaMark(
-                                x: .value("Time", stat.timestamp),
-                                y: .value("Memory", memMB)
-                            )
-                            .foregroundStyle(LinearGradient(colors: [Color.cyan.opacity(0.3), Color.clear], startPoint: .top, endPoint: .bottom))
-                            .interpolationMethod(.catmullRom)
+                    HStack {
+                        VStack(alignment: .trailing) {
+                            Text(String(format: "%.0fM", memMax)).font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
+                            Spacer()
+                            Text(String(format: "%.0fM", memMax / 2)).font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
+                            Spacer()
+                            Text("0M").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
                         }
-                    }
-                    .chartYScale(domain: 0...(currentStats.memTotalBytes > 0 ? Double(currentStats.memTotalBytes) / 1024 / 1024 : 1000))
-                    .chartXAxis(.hidden)
-                    .chartYAxis {
-                        AxisMarks(position: .leading) { value in
-                            AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4]))
-                            AxisTick()
-                            AxisValueLabel {
-                                if let val = value.as(Double.self) {
-                                    Text(String(format: "%.0fM", val))
-                                        .font(.system(size: 10))
-                                        .foregroundColor(AppTheme.textSecondary)
-                                }
-                            }
-                        }
+                        .frame(width: 40)
+
+                        CanvasLineChart(
+                            dataSets: [memData],
+                            colors: [Color.cyan],
+                            yMax: memMax
+                        )
                     }
                     .frame(height: 120)
                 }
@@ -320,45 +293,40 @@ struct ContainerDetailView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(AppTheme.textSecondary)
 
-                    Chart {
-                        ForEach(statsHistory, id: \.timestamp) { stat in
-                            let rxMB = Double(stat.netRxDelta) / 1024 / 1024
-                            let txMB = Double(stat.netTxDelta) / 1024 / 1024
+                    let rxData = statsHistory.map { Double($0.netRxDelta) / 1024 / 1024 }
+                    let txData = statsHistory.map { Double($0.netTxDelta) / 1024 / 1024 }
+                    let maxNet = max((rxData + txData).max() ?? 1.0, 1.0)
 
-                            LineMark(
-                                x: .value("Time", stat.timestamp),
-                                y: .value("Traffic", rxMB)
-                            )
-                            .foregroundStyle(by: .value("Type", "RX"))
-                            .interpolationMethod(.catmullRom)
-
-                            LineMark(
-                                x: .value("Time", stat.timestamp),
-                                y: .value("Traffic", txMB)
-                            )
-                            .foregroundStyle(by: .value("Type", "TX"))
-                            .interpolationMethod(.catmullRom)
+                    HStack {
+                        VStack(alignment: .trailing) {
+                            Text(String(format: "%.1fM/s", maxNet)).font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
+                            Spacer()
+                            Text(String(format: "%.1fM/s", maxNet / 2)).font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
+                            Spacer()
+                            Text("0M/s").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
                         }
-                    }
-                    .chartForegroundStyleScale([
-                        "RX": Color.green,
-                        "TX": Color.orange
-                    ])
-                    .chartXAxis(.hidden)
-                    .chartYAxis {
-                        AxisMarks(position: .leading) { value in
-                            AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4]))
-                            AxisTick()
-                            AxisValueLabel {
-                                if let val = value.as(Double.self) {
-                                    Text(String(format: "%.1fM/s", val))
-                                        .font(.system(size: 10))
-                                        .foregroundColor(AppTheme.textSecondary)
+                        .frame(width: 40)
+
+                        VStack {
+                            CanvasLineChart(
+                                dataSets: [rxData, txData],
+                                colors: [Color.green, Color.orange],
+                                yMax: maxNet
+                            )
+
+                            // Legend
+                            HStack(spacing: 12) {
+                                HStack(spacing: 4) {
+                                    Circle().fill(Color.green).frame(width: 8, height: 8)
+                                    Text("RX").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
+                                }
+                                HStack(spacing: 4) {
+                                    Circle().fill(Color.orange).frame(width: 8, height: 8)
+                                    Text("TX").font(.system(size: 10)).foregroundColor(AppTheme.textSecondary)
                                 }
                             }
                         }
                     }
-                    .chartLegend(position: .bottom, alignment: .leading)
                     .frame(height: 120)
                 }
             }
@@ -492,5 +460,89 @@ struct ContainerDetailView: View {
         if h > 0 { return "\(h)h \(m)m" }
         if m > 0 { return "\(m)m \(s)s" }
         return "\(s)s"
+    }
+}
+
+struct CanvasLineChart: View {
+    let dataSets: [[Double]]
+    let colors: [Color]
+    let yMax: Double
+    let yMin: Double
+    let showGrid: Bool
+
+    init(dataSets: [[Double]], colors: [Color], yMax: Double, yMin: Double = 0, showGrid: Bool = true) {
+        self.dataSets = dataSets
+        self.colors = colors
+        self.yMax = yMax == 0 ? 1 : yMax // Prevent division by zero
+        self.yMin = yMin
+        self.showGrid = showGrid
+    }
+
+    var body: some View {
+        Canvas { context, size in
+            // Draw Grid
+            if showGrid {
+                let gridPath = Path { p in
+                    for i in 0...2 {
+                        let y = size.height - (size.height * CGFloat(i) / 2.0)
+                        p.move(to: CGPoint(x: 0, y: y))
+                        p.addLine(to: CGPoint(x: size.width, y: y))
+                    }
+                }
+                context.stroke(gridPath, with: .color(Color.gray.opacity(0.3)), style: StrokeStyle(lineWidth: 1, dash: [4]))
+            }
+
+            // Draw Lines
+            for (index, dataSet) in dataSets.enumerated() {
+                guard dataSet.count > 1 else { continue }
+                let color = colors[index % colors.count]
+
+                let stepX = size.width / CGFloat(dataSet.count - 1)
+
+                var path = Path()
+                var areaPath = Path()
+
+                let firstY = size.height - CGFloat((dataSet[0] - yMin) / (yMax - yMin)) * size.height
+                path.move(to: CGPoint(x: 0, y: firstY))
+                areaPath.move(to: CGPoint(x: 0, y: size.height))
+                areaPath.addLine(to: CGPoint(x: 0, y: firstY))
+
+                for i in 1..<dataSet.count {
+                    let x = CGFloat(i) * stepX
+                    let y = size.height - CGFloat((dataSet[i] - yMin) / (yMax - yMin)) * size.height
+
+                    // Simple Catmull-Rom like curve approximation (using quad curves for simplicity in canvas)
+                    // For performance, we can just use lines, but the user wants curves.
+                    // Let's use simple lines first, as curve generation manually is complex, or use addCurve.
+                    // To keep it simple and fast, we just draw lines. The original used .catmullRom interpolation.
+                    // Let's implement a smooth curve using addCurve if needed, but standard lines are very fast.
+                    // The prompt specifically mentions "performance curves (lines, gradients, and gridlines)",
+                    // Let's use lines. "Canvas. Rysuje on krzywe użycia pamięci".
+
+                    let prevX = CGFloat(i - 1) * stepX
+                    let prevY = size.height - CGFloat((dataSet[i-1] - yMin) / (yMax - yMin)) * size.height
+
+                    let midX = (prevX + x) / 2
+
+                    // Bezier curve for smoothness
+                    path.addCurve(to: CGPoint(x: x, y: y),
+                                  control1: CGPoint(x: midX, y: prevY),
+                                  control2: CGPoint(x: midX, y: y))
+
+                    areaPath.addCurve(to: CGPoint(x: x, y: y),
+                                  control1: CGPoint(x: midX, y: prevY),
+                                  control2: CGPoint(x: midX, y: y))
+                }
+
+                areaPath.addLine(to: CGPoint(x: size.width, y: size.height))
+                areaPath.closeSubpath()
+
+                // Area Gradient
+                context.fill(areaPath, with: .linearGradient(Gradient(colors: [color.opacity(0.3), Color.clear]), startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: size.height)))
+
+                // Line
+                context.stroke(path, with: .color(color), lineWidth: 2)
+            }
+        }
     }
 }
