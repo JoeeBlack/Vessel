@@ -18,6 +18,20 @@ public enum VesselDomain: String, CaseIterable, Codable, Hashable {
     case untrusted = "untrusted"
 }
 
+public struct DomainRule: Identifiable, Codable, Hashable, Sendable {
+    public let id: UUID
+    public let source: VesselDomain
+    public let target: VesselDomain
+    public let isAllowed: Bool
+
+    public init(id: UUID = UUID(), source: VesselDomain, target: VesselDomain, isAllowed: Bool) {
+        self.id = id
+        self.source = source
+        self.target = target
+        self.isAllowed = isAllowed
+    }
+}
+
 // MARK: - Models
 public struct VesselVolume: Codable, Hashable, Sendable {
     public let host: String

@@ -68,6 +68,7 @@ public struct LogLine: Identifiable, Hashable, Sendable {
 @Observable
 public class ContainerViewModel {
     public var workloads: [VesselWorkload] = []
+    public var domainRules: [DomainRule] = []
     
     // Zbiera ID kontenerów, na których aktualnie wykonywana jest asynchroniczna operacja, by blokować interfejs UI
     public var loadingContainers: Set<String> = []
@@ -101,12 +102,34 @@ public class ContainerViewModel {
     private func fetchInitialWorkloads() async {
         do {
             self.workloads = try await daemon.fetchActiveWorkloads()
+            self.domainRules = daemon.fetchDomainRules()
         } catch {
             print("Błąd podczas pobierania workloadów: \(error.localizedDescription)")
             self.workloads = []
+            self.domainRules = daemon.fetchDomainRules()
         }
     }
     
+    @MainActor
+    public func fetchContainers() async {
+        do {
+            self.workloads = try await daemon.fetchActiveWorkloads()
+            self.domainRules = daemon.fetchDomainRules()
+        } catch {
+            print("Błąd: \(error.localizedDescription)")
+        }
+    }
+
+    public func addDomainRule(source: VesselDomain, target: VesselDomain, isAllowed: Bool) {
+        daemon.addDomainRule(DomainRule(source: source, target: target, isAllowed: isAllowed))
+        Task { await fetchContainers() }
+    }
+
+    public func removeDomainRule(id: UUID) {
+        daemon.removeDomainRule(id: id)
+        Task { await fetchContainers() }
+    }
+
     public func workload(for id: String) -> VesselWorkload? {
         return workloads.first { 
             switch $0 {

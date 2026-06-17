@@ -81,6 +81,7 @@ public final class ContainerDaemon: @unchecked Sendable {
     
     private var activeContainers: [String: ActiveContainer] = [:]
     private var activePods: [String: ActivePod] = [:]
+    private var domainRules: [DomainRule] = []
     
     private let containersFilePath: URL = {
         let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel")
@@ -97,6 +98,7 @@ public final class ContainerDaemon: @unchecked Sendable {
     public init() {
         loadContainers()
         loadPods()
+        loadDomainRules()
     }
     
     private func saveContainers() {
@@ -150,6 +152,41 @@ public final class ContainerDaemon: @unchecked Sendable {
         let containers = activeContainers.values.map { VesselWorkload.container($0.vessel) }
         let pods = activePods.values.map { VesselWorkload.pod($0.pod) }
         return containers + pods
+    }
+
+    public func fetchDomainRules() -> [DomainRule] {
+        return domainRules
+    }
+
+    public func addDomainRule(_ rule: DomainRule) {
+        domainRules.append(rule)
+        saveDomainRules()
+    }
+
+    public func removeDomainRule(id: UUID) {
+        domainRules.removeAll { $0.id == id }
+        saveDomainRules()
+    }
+
+    private func saveDomainRules() {
+        let file = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/domain_rules.json")
+        do {
+            let data = try JSONEncoder().encode(domainRules)
+            try data.write(to: file, options: [.atomic])
+        } catch {
+            print("Failed to save domain rules: \(error)")
+        }
+    }
+
+    private func loadDomainRules() {
+        let file = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/domain_rules.json")
+        do {
+            let data = try Data(contentsOf: file)
+            domainRules = try JSONDecoder().decode([DomainRule].self, from: data)
+        } catch {
+            print("No saved domain rules found or failed to load.")
+            domainRules = []
+        }
     }
     
     public func startPod(yamlPath: URL) async throws {

@@ -225,6 +225,16 @@ struct ContainerCardView: View {
                         Text(container.name)
                             .font(.system(size: 16, weight: .bold))
                             .foregroundColor(AppTheme.textPrimary)
+
+                        if container.domain != .generic {
+                            Text(container.domain.rawValue.uppercased())
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(AppTheme.color(for: container.domain).opacity(0.1))
+                                .foregroundColor(AppTheme.color(for: container.domain))
+                                .cornerRadius(4)
+                        }
                         
                         Spacer()
                         
@@ -367,15 +377,11 @@ struct ContainerCardView: View {
             ZStack {
                 AppTheme.cardBackground
 
-                // Domain Color Strip
                 if container.domain != .generic {
-                    GeometryReader { geo in
-                        Rectangle()
-                            .fill(AppTheme.color(for: container.domain))
-                            .frame(width: 4)
-                            .frame(maxHeight: .infinity)
-                    }
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(AppTheme.color(for: container.domain).opacity(0.5), lineWidth: 2)
                 }
+
                 if container.status == .creating || container.status == .starting || isLoading {
                     GeometryReader { geometry in
                         Rectangle()
