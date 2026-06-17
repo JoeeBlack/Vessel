@@ -45,9 +45,7 @@ struct PodCardView: View {
                 
                 // Status indicator
                 HStack(spacing: 6) {
-                    Circle()
-                        .fill(isRunning ? Color.green : (pod.status == .creating ? Color.orange : Color.red))
-                        .frame(width: 8, height: 8)
+                    StatusIndicator(status: pod.status, size: 8)
                     Text(pod.status.rawValue.capitalized)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(isRunning ? Color.green : (pod.status == .creating ? Color.orange : Color.red))

@@ -77,9 +77,15 @@ struct MenuBarWorkloadRow: View {
     var body: some View {
         HStack(spacing: 12) {
             // Status Indicator
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
+            StatusIndicator(
+                status: {
+                    switch workload {
+                    case .container(let c): return c.status
+                    case .pod(let p): return p.status
+                    }
+                }(),
+                size: 8
+            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(workload.name)
