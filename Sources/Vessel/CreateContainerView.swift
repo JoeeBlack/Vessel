@@ -87,6 +87,7 @@ struct CreateContainerView: View {
                         }
                     }
                     .padding(20)
+                    .background(Material.ultraThin)
                     .background(AppTheme.cardBackground)
                     .cornerRadius(12)
                     
@@ -170,6 +171,7 @@ struct CreateContainerView: View {
                         .padding(.top, 4)
                     }
                     .padding(20)
+                    .background(Material.ultraThin)
                     .background(AppTheme.cardBackground)
                     .cornerRadius(12)
                     
@@ -286,6 +288,7 @@ struct CreateContainerView: View {
                         }
                     }
                     .padding(20)
+                    .background(Material.ultraThin)
                     .background(AppTheme.cardBackground)
                     .cornerRadius(12)
                     

@@ -41,6 +41,7 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                     }
                     .padding(20)
+                    .background(Material.ultraThin)
                     .background(AppTheme.cardBackground)
                     .cornerRadius(12)
                     
@@ -83,6 +84,7 @@ struct SettingsView: View {
                         }
                     }
                     .padding(20)
+                    .background(Material.ultraThin)
                     .background(AppTheme.cardBackground)
                     .cornerRadius(12)
                 }

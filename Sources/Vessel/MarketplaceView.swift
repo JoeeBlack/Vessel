@@ -36,6 +36,7 @@ struct MarketplaceView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
+                    .background(Material.ultraThin)
                     .background(AppTheme.cardBackground)
                     .cornerRadius(20)
                     .overlay(
@@ -228,9 +229,10 @@ struct MarketplaceView: View {
             }
         }
         .padding(24)
+        .background(Material.ultraThin)
         .background(AppTheme.cardBackground)
         .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.02), radius: 10, x: 0, y: 5)
+        .shadow(color: Color.black.opacity(0.05), radius: 15, x: 0, y: 8)
         // Adding a subtle linear gradient to the first card to match mockup
         .background(
             isPrimaryButton ?

@@ -149,13 +149,14 @@ struct PodCardView: View {
         }
         .padding(20)
         .frame(height: 240)
+        .background(Material.ultraThin)
         .background(AppTheme.cardBackground)
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .stroke(isHovering ? AppTheme.accentBlue.opacity(0.5) : AppTheme.cardBorder, lineWidth: isHovering ? 2 : 1)
         )
-        .shadow(color: Color.black.opacity(isHovering ? 0.3 : 0.1), radius: isHovering ? 12 : 8, y: 4)
+        .shadow(color: Color.black.opacity(isHovering ? 0.2 : 0.05), radius: isHovering ? 20 : 10, y: isHovering ? 10 : 5)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovering = hovering
