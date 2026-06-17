@@ -18,7 +18,8 @@ let package = Package(
             dependencies: [
                 .product(name: "Containerization", package: "containerization"),
                 .product(name: "SwiftTerm", package: "SwiftTerm"),
-                .product(name: "Yams", package: "Yams")
+                .product(name: "Yams", package: "Yams"),
+                .product(name: "SystemPackage", package: "swift-system")
             ],
             path: "Sources/Vessel"
         )

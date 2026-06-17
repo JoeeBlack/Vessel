@@ -366,6 +366,16 @@ struct ContainerCardView: View {
         .background(
             ZStack {
                 AppTheme.cardBackground
+
+                // Domain Color Strip
+                if container.domain != .generic {
+                    GeometryReader { geo in
+                        Rectangle()
+                            .fill(AppTheme.color(for: container.domain))
+                            .frame(width: 4)
+                            .frame(maxHeight: .infinity)
+                    }
+                }
                 if container.status == .creating || container.status == .starting || isLoading {
                     GeometryReader { geometry in
                         Rectangle()

@@ -295,7 +295,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         return ref
     }
     
-    public func start(containerId: String, imageReference: String, name: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = []) async throws {
+    public func start(containerId: String, imageReference: String, name: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], domain: VesselDomain = .generic) async throws {
 
         // 🛡️ Sentinel: Validate host file paths BEFORE configuration to prevent container escape
         // We throw an error early instead of silently ignoring invalid mounts which could cause data loss.
@@ -457,7 +457,8 @@ public final class ContainerDaemon: @unchecked Sendable {
             cpus: cpus,
             memoryGB: memoryGB,
             envVars: envVars,
-            volumes: volumes
+            volumes: volumes,
+            domain: domain
         )
         
         activeContainers[containerId] = ActiveContainer(vessel: vessel, linux: container, logStream: stream)

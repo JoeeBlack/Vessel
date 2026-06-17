@@ -149,7 +149,20 @@ struct PodCardView: View {
         }
         .padding(20)
         .frame(height: 240)
-        .background(AppTheme.cardBackground)
+        .background(
+            ZStack {
+                AppTheme.cardBackground
+                // Domain Color Strip for Pod
+                if pod.domain != .generic {
+                    GeometryReader { geo in
+                        Rectangle()
+                            .fill(AppTheme.color(for: pod.domain))
+                            .frame(width: 4)
+                            .frame(maxHeight: .infinity)
+                    }
+                }
+            }
+        )
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)

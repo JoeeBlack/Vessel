@@ -26,9 +26,11 @@ struct CreateContainerView: View {
     }
     @State private var volumes: [VolumeMount] = []
     
+    @State private var selectedDomain: VesselDomain = .generic
+
     @State private var availableImages: [VesselImage] = []
     
-    var onCreate: (_ name: String, _ image: String, _ rootfs: Double, _ rosetta: Bool, _ networking: Bool, _ cpus: Int, _ memoryGB: Double, _ envVars: [String: String], _ volumes: [(host: String, container: String)]) -> Void
+    var onCreate: (_ name: String, _ image: String, _ rootfs: Double, _ rosetta: Bool, _ networking: Bool, _ cpus: Int, _ memoryGB: Double, _ envVars: [String: String], _ volumes: [(host: String, container: String)], _ domain: VesselDomain) -> Void
     
     var body: some View {
         VStack(spacing: 0) {
@@ -72,6 +74,30 @@ struct CreateContainerView: View {
                                 .foregroundColor(AppTheme.textPrimary)
                         }
                         
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Domain")
+                                .font(.system(size: 12))
+                                .foregroundColor(AppTheme.textSecondary)
+                            Picker("", selection: $selectedDomain) {
+                                ForEach(VesselDomain.allCases, id: \.self) { domain in
+                                    HStack {
+                                        if domain != .generic {
+                                            Circle().fill(AppTheme.color(for: domain)).frame(width: 8, height: 8)
+                                        }
+                                        Text(domain.rawValue.capitalized)
+                                    }
+                                    .tag(domain)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(MenuPickerStyle())
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(6)
+                            .background(AppTheme.mainBackgroundTop)
+                            .cornerRadius(6)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(AppTheme.cardBorder, lineWidth: 1))
+                        }
+
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Base Image (OCI)")
                                 .font(.system(size: 12))
@@ -349,7 +375,7 @@ struct CreateContainerView: View {
             vMap.append((host: v.hostPath, container: v.containerPath))
         }
         
-        onCreate(containerName, selectedImage, rootfsSize, enableRosetta, enableNetworking, Int(cpuCount), memoryGB, envMap, vMap)
+        onCreate(containerName, selectedImage, rootfsSize, enableRosetta, enableNetworking, Int(cpuCount), memoryGB, envMap, vMap, selectedDomain)
         dismiss()
     }
 }
