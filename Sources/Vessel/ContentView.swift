@@ -44,7 +44,7 @@ struct ContentView: View {
             sidebar
         } detail: {
             ZStack(alignment: .top) {
-                AppTheme.mainBackgroundTop
+                AppTheme.mainBackgroundGradient
                     .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
@@ -94,6 +94,7 @@ struct ContentView: View {
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
+                                .background(Material.ultraThin)
                                 .background(AppTheme.cardBackground)
                                 .foregroundColor(AppTheme.textPrimary)
                                 .overlay(RoundedRectangle(cornerRadius: 20).stroke(AppTheme.cardBorder, lineWidth: 1))
@@ -267,13 +268,14 @@ struct ContentView: View {
             }
             Spacer()
         }
+        .background(Material.thin)
         .background(AppTheme.sidebarBackground)
         .navigationSplitViewColumnWidth(260)
     }
     
     private var installOverlay: some View {
         ZStack {
-            AppTheme.mainBackgroundTop.ignoresSafeArea()
+            AppTheme.mainBackgroundGradient.ignoresSafeArea()
             VStack(spacing: 24) {
                 Image(systemName: "shippingbox.fill")
                     .font(.system(size: 64))

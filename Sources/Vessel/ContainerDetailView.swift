@@ -158,6 +158,7 @@ struct ContainerDetailView: View {
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
+                            .background(Material.ultraThin)
                             .background(AppTheme.cardBackground)
                             .cornerRadius(8)
                             .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.cardBorder, lineWidth: 1))
@@ -259,9 +260,10 @@ struct ContainerDetailView: View {
             .cornerRadius(8)
         }
         .padding(32)
+        .background(Material.ultraThin)
         .background(AppTheme.cardBackground)
         .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.02), radius: 10, x: 0, y: 5)
+        .shadow(color: Color.black.opacity(0.05), radius: 15, x: 0, y: 8)
     }
     
     private func htopBar(label: String, percentage: Double, color: Color, text: String) -> some View {
@@ -322,9 +324,10 @@ struct ContainerDetailView: View {
             }
         }
         .padding(24)
+        .background(Material.ultraThin)
         .background(AppTheme.cardBackground)
         .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.02), radius: 10, x: 0, y: 5)
+        .shadow(color: Color.black.opacity(0.05), radius: 15, x: 0, y: 8)
     }
     
     @ViewBuilder
@@ -342,9 +345,10 @@ struct ContainerDetailView: View {
 
         }
         .padding(24)
+        .background(Material.ultraThin)
         .background(AppTheme.cardBackground)
         .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.02), radius: 10, x: 0, y: 5)
+        .shadow(color: Color.black.opacity(0.05), radius: 15, x: 0, y: 8)
     }
     
     private func detailRow(label: String, value: String, isMonospaced: Bool = true) -> some View {

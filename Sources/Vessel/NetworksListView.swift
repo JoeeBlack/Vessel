@@ -96,6 +96,7 @@ struct NetworkCardView: View {
                     Image(systemName: "trash")
                         .foregroundColor(Color(red: 255/255, green: 100/255, blue: 100/255))
                         .padding(8)
+                        .background(Material.ultraThin)
                         .background(AppTheme.cardBackground)
                         .cornerRadius(8)
                 }
@@ -105,6 +106,7 @@ struct NetworkCardView: View {
             }
         }
         .padding(16)
+        .background(Material.ultraThin)
         .background(AppTheme.cardBackground)
         .cornerRadius(12)
         .overlay(

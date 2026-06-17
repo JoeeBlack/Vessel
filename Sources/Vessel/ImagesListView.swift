@@ -46,6 +46,7 @@ struct ImagesListView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+                .background(Material.ultraThin)
                 .background(AppTheme.cardBackground)
                 .cornerRadius(8)
                 .overlay(
@@ -85,6 +86,7 @@ struct ImagesListView: View {
                                     .font(.system(size: 12, design: .monospaced))
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
+                                    .background(Material.ultraThin)
                                     .background(AppTheme.cardBackground)
                                     .foregroundColor(AppTheme.accentBlue)
                                     .cornerRadius(6)
@@ -252,6 +254,7 @@ struct ImageCardView: View {
                 Image(systemName: "trash")
                     .foregroundColor(Color(red: 255/255, green: 100/255, blue: 100/255))
                     .padding(8)
+                    .background(Material.ultraThin)
                     .background(AppTheme.cardBackground)
                     .cornerRadius(8)
             }
@@ -261,6 +264,7 @@ struct ImageCardView: View {
             .padding(.leading, 12)
         }
         .padding(16)
+        .background(Material.ultraThin)
         .background(AppTheme.cardBackground)
         .cornerRadius(12)
         .overlay(
@@ -323,6 +327,7 @@ struct PullingImageCardView: View {
                 Image(systemName: "xmark")
                     .foregroundColor(Color(red: 255/255, green: 100/255, blue: 100/255))
                     .padding(8)
+                    .background(Material.ultraThin)
                     .background(AppTheme.cardBackground)
                     .cornerRadius(8)
             }

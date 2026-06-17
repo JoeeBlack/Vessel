@@ -151,6 +151,7 @@ struct PodCardView: View {
         .frame(height: 240)
         .background(
             ZStack {
+                Material.ultraThin
                 AppTheme.cardBackground
                 // Domain Color Strip for Pod
                 if pod.domain != .generic {
@@ -168,7 +169,7 @@ struct PodCardView: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(isHovering ? AppTheme.accentBlue.opacity(0.5) : AppTheme.cardBorder, lineWidth: isHovering ? 2 : 1)
         )
-        .shadow(color: Color.black.opacity(isHovering ? 0.3 : 0.1), radius: isHovering ? 12 : 8, y: 4)
+        .shadow(color: Color.black.opacity(isHovering ? 0.2 : 0.05), radius: isHovering ? 20 : 10, y: isHovering ? 10 : 5)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovering = hovering
