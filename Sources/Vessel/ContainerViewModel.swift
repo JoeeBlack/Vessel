@@ -80,6 +80,7 @@ public class ContainerViewModel {
     public var shellInputPipes: [String: Pipe] = [:]
     public var shellOutputPipes: [String: Pipe] = [:]
     public var publishedStats: [String: StatsModel] = [:]
+    public var statsHistory: [String: [StatsModel]] = [:]
     private var shellProcesses: [String: LinuxProcess] = [:]
 
     // ⚡ Bolt Optimization: Use reference counting to share a single background stats stream
@@ -292,7 +293,15 @@ public class ContainerViewModel {
                 do {
                     let stream = try await daemon.startStatsStream(containerId: id)
                     for await model in stream {
-                        await MainActor.run { self.publishedStats[id] = model }
+                        await MainActor.run {
+                            self.publishedStats[id] = model
+                            var history = self.statsHistory[id] ?? []
+                            history.append(model)
+                            if history.count > 60 { // keep last 60 seconds
+                                history.removeFirst(history.count - 60)
+                            }
+                            self.statsHistory[id] = history
+                        }
                     }
                 } catch {
                     viewModelLog("Failed to subscribe to stats for \(id): \(error)")

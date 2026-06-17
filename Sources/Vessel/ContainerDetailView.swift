@@ -221,53 +221,165 @@ struct ContainerDetailView: View {
     
     @ViewBuilder
     private func resourceChartCard() -> some View {
-        let stats = viewModel.publishedStats[container.id] ?? StatsModel()
+        let statsHistory = viewModel.statsHistory[container.id] ?? []
+        let currentStats = statsHistory.last ?? StatsModel()
         
         VStack(alignment: .leading, spacing: 16) {
             Text("Resource Utilization")
                 .font(.system(size: 16, weight: .bold, design: .serif))
                 .foregroundColor(AppTheme.textPrimary)
             
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 24) {
-                    // Left side: CPU and Mem bars
-                    VStack(alignment: .leading, spacing: 4) {
-                        if stats.cpuUsages.isEmpty {
-                            htopBar(label: "1", percentage: 0.0, color: AppTheme.runningGreen, text: "0.0%")
-                        } else {
-                            ForEach(Array(stats.cpuUsages.enumerated()), id: \.offset) { index, usage in
-                                htopBar(label: "\(index + 1)", percentage: usage, color: AppTheme.runningGreen, text: String(format: "%.1f%%", usage * 100))
+            HStack(spacing: 24) {
+                // CPU Chart
+                VStack(alignment: .leading) {
+                    Text("CPU Usage")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(AppTheme.textSecondary)
+
+                    Chart {
+                        ForEach(statsHistory, id: \.timestamp) { stat in
+                            let avgCpu = stat.cpuUsages.isEmpty ? 0 : stat.cpuUsages.reduce(0, +) / Double(stat.cpuUsages.count)
+                            LineMark(
+                                x: .value("Time", stat.timestamp),
+                                y: .value("CPU", avgCpu * 100)
+                            )
+                            .foregroundStyle(AppTheme.runningGreen)
+                            .interpolationMethod(.catmullRom)
+
+                            AreaMark(
+                                x: .value("Time", stat.timestamp),
+                                y: .value("CPU", avgCpu * 100)
+                            )
+                            .foregroundStyle(LinearGradient(colors: [AppTheme.runningGreen.opacity(0.3), Color.clear], startPoint: .top, endPoint: .bottom))
+                            .interpolationMethod(.catmullRom)
+                        }
+                    }
+                    .chartYScale(domain: 0...100)
+                    .chartXAxis(.hidden)
+                    .chartYAxis {
+                        AxisMarks(position: .leading, values: [0, 50, 100]) { value in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4]))
+                            AxisTick()
+                            AxisValueLabel {
+                                if let intValue = value.as(Int.self) {
+                                    Text("\(intValue)%")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(AppTheme.textSecondary)
+                                }
                             }
                         }
-                        
-                        let memPct = stats.memTotalBytes > 0 ? Double(stats.memUsedBytes) / Double(stats.memTotalBytes) : 0.0
-                        let memText = String(format: "%.1fM/%.1fM", Double(stats.memUsedBytes) / 1024 / 1024, Double(stats.memTotalBytes) / 1024 / 1024)
-                        htopBar(label: "Mem", percentage: memPct, color: .cyan, text: memText)
-                        
-                        let swpPct = stats.swapTotalBytes > 0 ? Double(stats.swapUsedBytes) / Double(stats.swapTotalBytes) : 0.0
-                        let swpText = String(format: "%.1fM/%.1fM", Double(stats.swapUsedBytes) / 1024 / 1024, Double(stats.swapTotalBytes) / 1024 / 1024)
-                        htopBar(label: "Swp", percentage: swpPct, color: .red, text: swpText)
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(height: 120)
+                }
+
+                // RAM Chart
+                VStack(alignment: .leading) {
+                    Text("Memory Usage")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(AppTheme.textSecondary)
                     
-                    // Right side: Stats
-                    VStack(alignment: .leading, spacing: 4) {
-                        htopStat(label: "Tasks:", value: "\(stats.tasks), \(stats.runningTasks) running")
-                        let load = stats.loadAverage
-                        htopStat(label: "Load average:", value: String(format: "%.2f %.2f %.2f", load[0], load[1], load[2]))
-                        
-                        let totalSecs = Int(stats.uptimeSeconds)
-                        let hrs = totalSecs / 3600
-                        let mins = (totalSecs % 3600) / 60
-                        let secs = totalSecs % 60
-                        htopStat(label: "Uptime:", value: String(format: "%02d:%02d:%02d", hrs, mins, secs))
+                    Chart {
+                        ForEach(statsHistory, id: \.timestamp) { stat in
+                            let memMB = Double(stat.memUsedBytes) / 1024 / 1024
+                            LineMark(
+                                x: .value("Time", stat.timestamp),
+                                y: .value("Memory", memMB)
+                            )
+                            .foregroundStyle(Color.cyan)
+                            .interpolationMethod(.catmullRom)
+
+                            AreaMark(
+                                x: .value("Time", stat.timestamp),
+                                y: .value("Memory", memMB)
+                            )
+                            .foregroundStyle(LinearGradient(colors: [Color.cyan.opacity(0.3), Color.clear], startPoint: .top, endPoint: .bottom))
+                            .interpolationMethod(.catmullRom)
+                        }
                     }
-                    .frame(width: 250)
+                    .chartYScale(domain: 0...(currentStats.memTotalBytes > 0 ? Double(currentStats.memTotalBytes) / 1024 / 1024 : 1000))
+                    .chartXAxis(.hidden)
+                    .chartYAxis {
+                        AxisMarks(position: .leading) { value in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4]))
+                            AxisTick()
+                            AxisValueLabel {
+                                if let val = value.as(Double.self) {
+                                    Text(String(format: "%.0fM", val))
+                                        .font(.system(size: 10))
+                                        .foregroundColor(AppTheme.textSecondary)
+                                }
+                            }
+                        }
+                    }
+                    .frame(height: 120)
+                }
+
+                // Network I/O Chart
+                VStack(alignment: .leading) {
+                    Text("Network I/O")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(AppTheme.textSecondary)
+
+                    Chart {
+                        ForEach(statsHistory, id: \.timestamp) { stat in
+                            let rxMB = Double(stat.netRxDelta) / 1024 / 1024
+                            let txMB = Double(stat.netTxDelta) / 1024 / 1024
+
+                            LineMark(
+                                x: .value("Time", stat.timestamp),
+                                y: .value("Traffic", rxMB)
+                            )
+                            .foregroundStyle(by: .value("Type", "RX"))
+                            .interpolationMethod(.catmullRom)
+
+                            LineMark(
+                                x: .value("Time", stat.timestamp),
+                                y: .value("Traffic", txMB)
+                            )
+                            .foregroundStyle(by: .value("Type", "TX"))
+                            .interpolationMethod(.catmullRom)
+                        }
+                    }
+                    .chartForegroundStyleScale([
+                        "RX": Color.green,
+                        "TX": Color.orange
+                    ])
+                    .chartXAxis(.hidden)
+                    .chartYAxis {
+                        AxisMarks(position: .leading) { value in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4]))
+                            AxisTick()
+                            AxisValueLabel {
+                                if let val = value.as(Double.self) {
+                                    Text(String(format: "%.1fM/s", val))
+                                        .font(.system(size: 10))
+                                        .foregroundColor(AppTheme.textSecondary)
+                                }
+                            }
+                        }
+                    }
+                    .chartLegend(position: .bottom, alignment: .leading)
+                    .frame(height: 120)
                 }
             }
             .padding(16)
             .background(AppTheme.darkTerminalBackground)
             .cornerRadius(8)
+            
+            // Stats Row
+            HStack(spacing: 24) {
+                htopStat(label: "Tasks:", value: "\(currentStats.tasks) total, \(currentStats.runningTasks) running")
+                
+                let load = currentStats.loadAverage
+                htopStat(label: "Load average:", value: String(format: "%.2f %.2f %.2f", load[0], load[1], load[2]))
+                
+                let totalSecs = Int(currentStats.uptimeSeconds)
+                let hrs = totalSecs / 3600
+                let mins = (totalSecs % 3600) / 60
+                let secs = totalSecs % 60
+                htopStat(label: "Uptime:", value: String(format: "%02d:%02d:%02d", hrs, mins, secs))
+            }
+            .padding(.top, 8)
         }
         .padding(32)
         .background(Material.ultraThin)
@@ -276,46 +388,14 @@ struct ContainerDetailView: View {
         .shadow(color: Color.black.opacity(0.05), radius: 15, x: 0, y: 8)
     }
     
-    private func htopBar(label: String, percentage: Double, color: Color, text: String) -> some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .foregroundColor(.white)
-                .frame(width: 30, alignment: .trailing)
-            
-            HStack(spacing: 0) {
-                Text("[")
-                    .foregroundColor(.white)
-                
-                GeometryReader { geo in
-                    let totalPipes = Int(geo.size.width / 7.2)
-                    let activePipes = Int(Double(totalPipes) * percentage)
-                    
-                    Text(String(repeating: "|", count: activePipes))
-                        .foregroundColor(color)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                
-                Text(text)
-                    .foregroundColor(.white)
-                    .frame(width: 80, alignment: .trailing)
-                
-                Text("]")
-                    .foregroundColor(.white)
-            }
-            .font(.system(size: 12, design: .monospaced))
-        }
-        .frame(height: 16)
-    }
-    
     private func htopStat(label: String, value: String) -> some View {
         HStack(spacing: 4) {
             Text(label)
-                .foregroundColor(.white)
+                .foregroundColor(AppTheme.textSecondary)
             Text(value)
-                .foregroundColor(AppTheme.runningGreen)
+                .foregroundColor(AppTheme.textPrimary)
         }
-        .font(.system(size: 12, design: .monospaced))
+        .font(.system(size: 12))
     }
     
     @ViewBuilder
