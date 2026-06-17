@@ -408,7 +408,35 @@ struct ContainerDetailView: View {
             VStack(spacing: 16) {
                 detailRow(label: "IP Address", value: container.ipAddress ?? "-")
                 Divider().background(AppTheme.cardBorder)
-                detailRow(label: "Ports", value: container.ports ?? "-")
+
+                let forwards = container.portForwards
+                if !forwards.isEmpty {
+                    HStack {
+                        Text("Ports")
+                            .font(.system(size: 12))
+                            .foregroundColor(AppTheme.textSecondary)
+                        Spacer()
+                        HStack(spacing: 8) {
+                            ForEach(forwards, id: \.hostPort) { pf in
+                                if let url = URL(string: "http://localhost:\(pf.hostPort)") {
+                                    Link("\(pf.hostPort):\(pf.containerPort)", destination: url)
+                                        .font(.system(size: 13, design: .monospaced))
+                                        .foregroundColor(AppTheme.accentBlue)
+                                        .underline()
+                                        .help("Open in Browser")
+                                        .accessibilityLabel("Open localhost:\(pf.hostPort) in Browser")
+                                } else {
+                                    Text("\(pf.hostPort):\(pf.containerPort)")
+                                        .font(.system(size: 13, design: .monospaced))
+                                        .foregroundColor(AppTheme.accentBlue)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    detailRow(label: "Ports", value: container.ports ?? "-")
+                }
+
                 Divider().background(AppTheme.cardBorder)
                 detailRow(label: "Gateway", value: "-")
             }

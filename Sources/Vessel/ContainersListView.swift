@@ -299,7 +299,34 @@ struct ContainerCardView: View {
             // Details Section (IP & Ports)
             VStack(spacing: 8) {
                 detailRow(label: "IP Address", value: container.ipAddress ?? "-")
-                detailRow(label: "Ports", value: container.ports ?? "-")
+
+                let forwards = container.portForwards
+                if !forwards.isEmpty {
+                    HStack {
+                        Text("Ports")
+                            .font(.system(size: 11))
+                            .foregroundColor(AppTheme.textSecondary)
+                        Spacer()
+                        HStack(spacing: 4) {
+                            ForEach(forwards, id: \.hostPort) { pf in
+                                if let url = URL(string: "http://localhost:\(pf.hostPort)") {
+                                    Link("\(pf.hostPort):\(pf.containerPort)", destination: url)
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundColor(AppTheme.accentBlue)
+                                        .underline()
+                                        .help("Open in Browser")
+                                        .accessibilityLabel("Open localhost:\(pf.hostPort) in Browser")
+                                } else {
+                                    Text("\(pf.hostPort):\(pf.containerPort)")
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundColor(AppTheme.accentBlue)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    detailRow(label: "Ports", value: container.ports ?? "-")
+                }
             }
             .padding(12)
             .background(AppTheme.mainBackgroundTop)

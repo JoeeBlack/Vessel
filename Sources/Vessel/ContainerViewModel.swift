@@ -140,18 +140,18 @@ public class ContainerViewModel {
         }
     }
     @MainActor
-    public func createContainer(name: String, image: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, cpus: Int, memoryGB: Double, envVars: [String: String], volumes: [VesselVolume], domain: VesselDomain = .generic) async {
+    public func createContainer(name: String, image: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, cpus: Int, memoryGB: Double, envVars: [String: String], volumes: [VesselVolume], portForwards: [VesselPortForward], domain: VesselDomain = .generic) async {
         let newId = UUID().uuidString
         loadingContainers.insert(newId)
         
         // Add a temporary container to the UI
-        let placeholder = VesselContainer(id: newId, name: name, subtitle: "WORKLOAD", image: image, status: .creating, domain: domain)
+        let placeholder = VesselContainer(id: newId, name: name, subtitle: "WORKLOAD", image: image, status: .creating, portForwards: portForwards, domain: domain)
         self.workloads.insert(.container(placeholder), at: 0)
         
         defer { loadingContainers.remove(newId) }
         
         do {
-            try await daemon.start(containerId: newId, imageReference: image, name: name, rootfsSizeGB: rootfsSizeGB, rosetta: rosetta, networking: networking, cpus: cpus, memoryGB: memoryGB, envVars: envVars, volumes: volumes, domain: domain)
+            try await daemon.start(containerId: newId, imageReference: image, name: name, rootfsSizeGB: rootfsSizeGB, rosetta: rosetta, networking: networking, cpus: cpus, memoryGB: memoryGB, envVars: envVars, volumes: volumes, portForwards: portForwards, domain: domain)
             await fetchInitialWorkloads()
         } catch {
             print("Błąd podczas tworzenia kontenera: \(error.localizedDescription)")
