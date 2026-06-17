@@ -10,6 +10,7 @@ struct ContentView: View {
         case marketplace = "Marketplace"
         case networks = "Networks"
         case settings = "Settings"
+        case volumes = "Volumes"
         
         var id: String { self.rawValue }
         var icon: String {
@@ -18,6 +19,7 @@ struct ContentView: View {
             case .images: return "square.stack.3d.up"
             case .marketplace: return "storefront"
             case .networks: return "network"
+            case .volumes: return "externaldrive"
             case .settings: return "gearshape"
             }
         }
@@ -162,6 +164,8 @@ struct ContentView: View {
                         MarketplaceView(viewModel: viewModel)
                     } else if selectedSidebarItem == .networks {
                         NetworksListView()
+                    } else if selectedSidebarItem == .volumes {
+                        VolumesManagerView(viewModel: viewModel)
                     } else if selectedSidebarItem == .settings {
                         SettingsView()
                     } else {
