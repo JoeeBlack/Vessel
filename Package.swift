@@ -21,6 +21,19 @@ let package = Package(
                 .unsafeFlags(["-whole-module-optimization"])
             ]
         ),
+                .executableTarget(
+            name: "vesseld",
+            dependencies: [
+                "VesselXPC"
+            ],
+            path: "Sources/vesseld",
+            swiftSettings: [
+                .unsafeFlags(["-whole-module-optimization"])
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-dead_strip"])
+            ]
+        ),
         .executableTarget(
             name: "Vessel",
             dependencies: [
