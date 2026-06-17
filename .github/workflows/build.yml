@@ -22,7 +22,7 @@ jobs:
         submodules: recursive
 
     - name: Set up Swift
-      uses: swift-actions/setup-swift@v2
+      uses: swift-actions/setup-swift@v3
       env:
         FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       with:
