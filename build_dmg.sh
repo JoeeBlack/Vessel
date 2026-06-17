@@ -21,10 +21,8 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 cp .build/release/$APP_NAME "$APP_BUNDLE/Contents/MacOS/"
 
 echo "🔨 Budowanie narzędzia CLI (cctl)..."
-pushd .build/checkouts/containerization > /dev/null
 swift build -c release --product cctl
-popd > /dev/null
-cp .build/checkouts/containerization/.build/release/cctl "$APP_BUNDLE/Contents/Resources/container"
+cp .build/release/cctl "$APP_BUNDLE/Contents/Resources/container"
 
 
 echo "🖼️ 3/6 Generowanie ikony aplikacji ($ICON_ICNS)..."
@@ -78,7 +76,9 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
 EOF
 
 echo "🔐 5/6 Ad-Hoc Code Signing..."
-codesign --force --deep --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE"
+codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/Resources/container"
+codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE"
 
 echo "💿 6/6 Generowanie pięknego pliku $DMG_NAME..."
 rm -f "$DMG_NAME"
