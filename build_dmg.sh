@@ -24,6 +24,7 @@ echo "🔨 Budowanie narzędzia CLI (cctl)..."
 swift build -c release --product cctl
 cp .build/release/cctl "$APP_BUNDLE/Contents/Resources/container"
 
+
 echo "🖼️ 3/6 Generowanie ikony aplikacji ($ICON_ICNS)..."
 mkdir -p "Assets"
 if [ ! -f "$ICON_PNG" ]; then
