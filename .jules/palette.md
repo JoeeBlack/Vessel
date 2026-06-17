@@ -9,4 +9,10 @@
 ## 2024-06-13 - SwiftUI Accessibility and Tooltips
 **Learning:** In SwiftUI for macOS, adding the `.help("text")` modifier to interactive elements like `Button` natively handles both visual tooltips and screen reader accessibility labels, making it an excellent all-in-one UX improvement for icon-only buttons.
 **Action:** Always use the `.help()` modifier for icon-only buttons or complex UI components in SwiftUI macOS projects instead of separate `accessibilityLabel` modifiers unless specific screen reader hints are required.
-## 2024-06-15 - Implement Liquid Glass Theme **Learning:** Applying a 'Liquid Glass' UI style in SwiftUI requires chaining `.background(Material.ultraThin)` before the custom semi-transparent color background `Color.opacity()` to achieve the frosted glass look, alongside refining drop shadows (larger radius, lower opacity) for depth. **Action:** Consistently use SwiftUI Materials (`.ultraThinMaterial`, `.thinMaterial`) coupled with translucent background colors and soft gradients when implementing glassmorphism across components.
+## 2024-06-15 - Implement Liquid Glass Theme
+**Learning:** Applying a 'Liquid Glass' UI style in SwiftUI requires chaining `.background(Material.ultraThin)` before the custom semi-transparent color background `Color.opacity()` to achieve the frosted glass look, alongside refining drop shadows (larger radius, lower opacity) for depth.
+**Action:** Consistently use SwiftUI Materials (`.ultraThinMaterial`, `.thinMaterial`) coupled with translucent background colors and soft gradients when implementing glassmorphism across components.
+
+## 2026-06-17 - Custom SwiftUI Views in Menu Bar
+**Learning:** By default, `MenuBarExtra` renders its content as a standard macOS menu. To render complex custom SwiftUI layouts (like lists with buttons, graphs, and stats) from the menu bar icon, you must change the style.
+**Action:** Use the `.menuBarExtraStyle(.window)` modifier on the `MenuBarExtra` to present it as a popover window instead of a standard list menu.
