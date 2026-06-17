@@ -22,7 +22,7 @@ cp .build/release/$APP_NAME "$APP_BUNDLE/Contents/MacOS/"
 
 echo "🔨 Budowanie narzędzia CLI (cctl)..."
 swift build -c release --product cctl
-cp .build/release/cctl "$APP_BUNDLE/Contents/Resources/container"
+cp .build/release/cctl "$APP_BUNDLE/Contents/Resources/cctl"
 
 
 echo "🖼️ 3/6 Generowanie ikony aplikacji ($ICON_ICNS)..."
@@ -83,7 +83,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
 EOF
 
 echo "🔐 5/6 Ad-Hoc Code Signing (inside-out)..."
-codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/Resources/container"
+codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/Resources/cctl"
 codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE"
 
