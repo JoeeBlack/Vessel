@@ -143,6 +143,7 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
     public let exitStatus: String?
     public let rosettaEnabled: Bool
     public let networkingEnabled: Bool
+    public let isBackground: Bool
     public let rootfsSize: String
     
     // Persistence fields for recreation
@@ -153,7 +154,7 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
     public let portForwards: [VesselPortForward]
     public let domain: VesselDomain
     
-    public init(id: String, name: String, subtitle: String, image: String, status: VesselStatus, ipAddress: String? = nil, dnsName: String? = nil, uptime: String? = nil, ports: String? = nil, memoryUsage: String? = nil, volume: String? = nil, exitStatus: String? = nil, rosettaEnabled: Bool = false, networkingEnabled: Bool = true, rootfsSize: String = "8GB", cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], portForwards: [VesselPortForward] = [], domain: VesselDomain = .generic) {
+    public init(id: String, name: String, subtitle: String, image: String, status: VesselStatus, ipAddress: String? = nil, dnsName: String? = nil, uptime: String? = nil, ports: String? = nil, memoryUsage: String? = nil, volume: String? = nil, exitStatus: String? = nil, rosettaEnabled: Bool = false, networkingEnabled: Bool = true, isBackground: Bool = false, rootfsSize: String = "8GB", cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], portForwards: [VesselPortForward] = [], domain: VesselDomain = .generic) {
         self.id = id
         self.name = name
         self.subtitle = subtitle
@@ -168,6 +169,7 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
         self.exitStatus = exitStatus
         self.rosettaEnabled = rosettaEnabled
         self.networkingEnabled = networkingEnabled
+        self.isBackground = isBackground
         self.rootfsSize = rootfsSize
         self.cpus = cpus
         self.memoryGB = memoryGB
@@ -181,7 +183,7 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
 
 
     enum CodingKeys: String, CodingKey {
-        case id, name, subtitle, image, status, ipAddress, dnsName, uptime, ports, memoryUsage, volume, exitStatus, rosettaEnabled, networkingEnabled, rootfsSize, cpus, memoryGB, envVars, volumes, portForwards, domain
+        case id, name, subtitle, image, status, ipAddress, dnsName, uptime, ports, memoryUsage, volume, exitStatus, rosettaEnabled, networkingEnabled, isBackground, rootfsSize, cpus, memoryGB, envVars, volumes, portForwards, domain
     }
 
 
@@ -203,6 +205,7 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
         try container.encodeIfPresent(exitStatus, forKey: .exitStatus)
         try container.encode(rosettaEnabled, forKey: .rosettaEnabled)
         try container.encode(networkingEnabled, forKey: .networkingEnabled)
+        try container.encode(isBackground, forKey: .isBackground)
         try container.encode(rootfsSize, forKey: .rootfsSize)
         try container.encode(cpus, forKey: .cpus)
         try container.encode(memoryGB, forKey: .memoryGB)
@@ -228,6 +231,7 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
         self.exitStatus = try container.decodeIfPresent(String.self, forKey: .exitStatus)
         self.rosettaEnabled = try container.decode(Bool.self, forKey: .rosettaEnabled)
         self.networkingEnabled = try container.decode(Bool.self, forKey: .networkingEnabled)
+        self.isBackground = try container.decodeIfPresent(Bool.self, forKey: .isBackground) ?? false
         self.rootfsSize = try container.decode(String.self, forKey: .rootfsSize)
         self.cpus = try container.decode(Int.self, forKey: .cpus)
         self.memoryGB = try container.decode(Double.self, forKey: .memoryGB)

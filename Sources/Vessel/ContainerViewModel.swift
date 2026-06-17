@@ -142,20 +142,21 @@ public class ContainerViewModel {
         }
     }
     @MainActor
-    public func createContainer(name: String, image: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, cpus: Int, memoryGB: Double, envVars: [String: String], volumes: [VesselVolume], portForwards: [VesselPortForward], domain: VesselDomain = .generic) async {
+    public func createContainer(name: String, image: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, isBackground: Bool, cpus: Int, memoryGB: Double, envVars: [String: String], volumes: [VesselVolume], portForwards: [VesselPortForward], domain: VesselDomain = .generic) async {
         await checkAndRequestNotificationAuthorization()
+
 
         let newId = UUID().uuidString
         loadingContainers.insert(newId)
         
         // Add a temporary container to the UI
-        let placeholder = VesselContainer(id: newId, name: name, subtitle: "WORKLOAD", image: image, status: .creating, portForwards: portForwards, domain: domain)
+        let placeholder = VesselContainer(id: newId, name: name, subtitle: "WORKLOAD", image: image, status: .creating, isBackground: isBackground, portForwards: portForwards, domain: domain)
         self.workloads.insert(.container(placeholder), at: 0)
         
         defer { loadingContainers.remove(newId) }
         
         do {
-            try await daemon.start(containerId: newId, imageReference: image, name: name, rootfsSizeGB: rootfsSizeGB, rosetta: rosetta, networking: networking, cpus: cpus, memoryGB: memoryGB, envVars: envVars, volumes: volumes, portForwards: portForwards, domain: domain)
+            try await daemon.start(containerId: newId, imageReference: image, name: name, rootfsSizeGB: rootfsSizeGB, rosetta: rosetta, networking: networking, isBackground: isBackground, cpus: cpus, memoryGB: memoryGB, envVars: envVars, volumes: volumes, portForwards: portForwards, domain: domain)
             await fetchInitialWorkloads()
             sendBuildCompletedNotification(containerName: name)
         } catch {
@@ -264,13 +265,35 @@ public class ContainerViewModel {
         // Czyścimy poprzednie logi za każdym razem, gdy wywołujemy metodę dla nowego kontenera
         currentLogs.removeAll()
         
-        let stream = daemon.streamLogs(for: id)
+        let isBg: Bool = {
+            if let w = workload(for: id), case .container(let c) = w {
+                return c.isBackground
+            }
+            return false
+        }()
         
-        // Czekamy w pętli na każdą nową wygenerowaną linię
-        for await line in stream {
-            // Ze względu na mechanizmy `.task` w SwiftUI, kiedy element straci na ważności 
-            // (użytkownik kliknie inny kontener), pętla automatycznie zostanie odwołana i zakończona.
-            currentLogs.append(line)
+        let qos: DispatchQoS = isBg ? .background : .utility
+
+        let taskWrapper = TaskWrapper()
+
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                DispatchQueue(label: "com.vessel.daemon.logs", qos: qos).async {
+                    let innerTask = Task {
+                        let stream = self.daemon.streamLogs(for: id)
+                        for await line in stream {
+                            if Task.isCancelled { break }
+                            await MainActor.run {
+                                self.currentLogs.append(line)
+                            }
+                        }
+                        continuation.resume()
+                    }
+                    taskWrapper.set(innerTask)
+                }
+            }
+        } onCancel: {
+            taskWrapper.cancel()
         }
     }
     
@@ -331,23 +354,46 @@ public class ContainerViewModel {
         }
 
         if activeStatsTasks[id] == nil {
+            let isBg: Bool = {
+                if let w = workload(for: id), case .container(let c) = w {
+                    return c.isBackground
+                }
+                return false
+            }()
+            let qos: DispatchQoS = isBg ? .background : .utility
+
             activeStatsTasks[id] = Task { [weak self] in
                 guard let self = self else { return }
-                do {
-                    let stream = try await daemon.startStatsStream(containerId: id)
-                    for await model in stream {
-                        await MainActor.run {
-                            self.publishedStats[id] = model
-                            var history = self.statsHistory[id] ?? []
-                            history.append(model)
-                            if history.count > 60 { // keep last 60 seconds
-                                history.removeFirst(history.count - 60)
+                let taskWrapper = TaskWrapper()
+
+                await withTaskCancellationHandler {
+                    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                        DispatchQueue(label: "com.vessel.daemon.stats", qos: qos).async {
+                            let innerTask = Task {
+                                do {
+                                    let stream = try await self.daemon.startStatsStream(containerId: id)
+                                    for await model in stream {
+                                        if Task.isCancelled { break }
+                                        await MainActor.run {
+                                            self.publishedStats[id] = model
+                                            var history = self.statsHistory[id] ?? []
+                                            history.append(model)
+                                            if history.count > 60 { // keep last 60 seconds
+                                                history.removeFirst(history.count - 60)
+                                            }
+                                            self.statsHistory[id] = history
+                                        }
+                                    }
+                                } catch {
+                                    viewModelLog("Failed to subscribe to stats for \(id): \(error)")
+                                }
+                                continuation.resume()
                             }
-                            self.statsHistory[id] = history
+                            taskWrapper.set(innerTask)
                         }
                     }
-                } catch {
-                    viewModelLog("Failed to subscribe to stats for \(id): \(error)")
+                } onCancel: {
+                    taskWrapper.cancel()
                 }
             }
         }
@@ -363,5 +409,28 @@ public class ContainerViewModel {
         shellProcesses.removeValue(forKey: id)
         shellInputPipes.removeValue(forKey: id)
         shellOutputPipes.removeValue(forKey: id)
+    }
+}
+
+class TaskWrapper: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: Task<Void, Never>?
+    private var isCancelled = false
+
+    func set(_ task: Task<Void, Never>) {
+        lock.lock()
+        defer { lock.unlock() }
+        if isCancelled {
+            task.cancel()
+        } else {
+            self.task = task
+        }
+    }
+
+    func cancel() {
+        lock.lock()
+        defer { lock.unlock() }
+        isCancelled = true
+        task?.cancel()
     }
 }

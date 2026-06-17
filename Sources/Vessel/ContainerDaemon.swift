@@ -172,7 +172,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
         for var vessel in vessels {
             // Mark as stopped initially
-            vessel = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes)
+            vessel = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, isBackground: vessel.isBackground, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes)
             activeContainers[vessel.id] = ActiveContainer(vessel: vessel, linux: nil, logStream: nil)
         }
     }
@@ -392,6 +392,7 @@ public final class ContainerDaemon: @unchecked Sendable {
                 ipAddress: "127.0.0.1",
                 rosettaEnabled: true,
                 networkingEnabled: true,
+                isBackground: false,
                 rootfsSize: "8GB",
                 cpus: 1,
                 memoryGB: 1,
@@ -404,7 +405,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             id: podId,
             name: projectName,
             status: .running,
-            containers: containers.map { VesselContainer(id: $0.id, name: $0.name, subtitle: $0.subtitle, image: $0.image, status: .running, ipAddress: $0.ipAddress, rosettaEnabled: $0.rosettaEnabled, networkingEnabled: $0.networkingEnabled, rootfsSize: $0.rootfsSize, cpus: $0.cpus, memoryGB: $0.memoryGB, envVars: $0.envVars, volumes: $0.volumes) },
+            containers: containers.map { VesselContainer(id: $0.id, name: $0.name, subtitle: $0.subtitle, image: $0.image, status: .running, ipAddress: $0.ipAddress, rosettaEnabled: $0.rosettaEnabled, networkingEnabled: $0.networkingEnabled, isBackground: $0.isBackground, rootfsSize: $0.rootfsSize, cpus: $0.cpus, memoryGB: $0.memoryGB, envVars: $0.envVars, volumes: $0.volumes) },
             cpus: 4,
             memoryGB: 4.0
         )
@@ -433,7 +434,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         return ref
     }
     
-    public func start(containerId: String, imageReference: String, name: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], portForwards: [VesselPortForward] = [], domain: VesselDomain = .generic) async throws {
+    public func start(containerId: String, imageReference: String, name: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, isBackground: Bool = false, cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], portForwards: [VesselPortForward] = [], domain: VesselDomain = .generic) async throws {
 
         // 🛡️ Sentinel: Validate host file paths BEFORE configuration to prevent container escape
         // We throw an error early instead of silently ignoring invalid mounts which could cause data loss.
@@ -578,10 +579,22 @@ public final class ContainerDaemon: @unchecked Sendable {
         container.stderr = stderrWriter
         
         debugLog("Calling container.create()...")
-        try await container.create()
-        debugLog("Calling container.start()...")
-        try await container.start()
-        debugLog("Container started successfully!")
+        let qos: DispatchQoS = isBackground ? .background : .utility
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            DispatchQueue(label: "com.vessel.daemon.vm", qos: qos).async {
+                Task {
+                    do {
+                        try await container.create()
+                        debugLog("Calling container.start()...")
+                        try await container.start()
+                        debugLog("Container started successfully!")
+                        continuation.resume()
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+        }
         
         if container.rosetta {
             // Manually run binfmt_misc registration in guest VM
@@ -627,6 +640,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             ipAddress: networking ? "127.0.0.1" : nil,
             rosettaEnabled: rosetta,
             networkingEnabled: networking,
+            isBackground: isBackground,
             rootfsSize: "\(Int(rootfsSizeGB))GB",
             cpus: cpus,
             memoryGB: memoryGB,
@@ -786,7 +800,19 @@ public final class ContainerDaemon: @unchecked Sendable {
             container.stdout = stdoutWriter
             container.stderr = stderrWriter
             debugLog("Calling container.create()...")
-            try await container.create()
+            let qosCreate: DispatchQoS = vessel.isBackground ? .background : .utility
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                DispatchQueue(label: "com.vessel.daemon.vm", qos: qosCreate).async {
+                    Task {
+                        do {
+                            try await container.create()
+                            continuation.resume()
+                        } catch {
+                            continuation.resume(throwing: error)
+                        }
+                    }
+                }
+            }
             linux = container
         }
         
@@ -796,8 +822,20 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
 
         debugLog("Calling linuxContainer.start()...")
-        try await linuxContainer.start()
-        debugLog("linuxContainer.start() succeeded!")
+        let qosStart: DispatchQoS = vessel.isBackground ? .background : .utility
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            DispatchQueue(label: "com.vessel.daemon.vm", qos: qosStart).async {
+                Task {
+                    do {
+                        try await linuxContainer.start()
+                        debugLog("linuxContainer.start() succeeded!")
+                        continuation.resume()
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+        }
         
         if linuxContainer.rosetta {
             // Manually run binfmt_misc registration in guest VM
@@ -829,7 +867,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             }
         }
 
-        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.networkingEnabled ? "127.0.0.1" : nil, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: nil, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
+        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.networkingEnabled ? "127.0.0.1" : nil, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: nil, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, isBackground: vessel.isBackground, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
         activeContainers[containerId] = ActiveContainer(vessel: updated, linux: linux, logStream: stream, portForwarders: activeForwarders)
         saveContainers()
     }
@@ -931,7 +969,7 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         }
 
         let vessel = active.vessel
-        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: force ? "Force Stopped by user" : "Stopped by user", rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
+        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: force ? "Force Stopped by user" : "Stopped by user", rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, isBackground: vessel.isBackground, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
         activeContainers[containerId] = ActiveContainer(vessel: updated, linux: nil, logStream: nil, portForwarders: [])
         saveContainers()
     }
