@@ -2,6 +2,8 @@ import Foundation
 import Observation
 import SwiftUI
 import Containerization
+import UserNotifications
+import AppKit
 
 func viewModelLog(_ msg: String) {
     let logFile = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/daemon.log")
@@ -141,6 +143,8 @@ public class ContainerViewModel {
     }
     @MainActor
     public func createContainer(name: String, image: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, cpus: Int, memoryGB: Double, envVars: [String: String], volumes: [VesselVolume], portForwards: [VesselPortForward], domain: VesselDomain = .generic) async {
+        await checkAndRequestNotificationAuthorization()
+
         let newId = UUID().uuidString
         loadingContainers.insert(newId)
         
@@ -153,6 +157,7 @@ public class ContainerViewModel {
         do {
             try await daemon.start(containerId: newId, imageReference: image, name: name, rootfsSizeGB: rootfsSizeGB, rosetta: rosetta, networking: networking, cpus: cpus, memoryGB: memoryGB, envVars: envVars, volumes: volumes, portForwards: portForwards, domain: domain)
             await fetchInitialWorkloads()
+            sendBuildCompletedNotification(containerName: name)
         } catch {
             print("Błąd podczas tworzenia kontenera: \(error.localizedDescription)")
             self.errorMessage = "Failed to create container: \(error.localizedDescription)"
@@ -161,6 +166,44 @@ public class ContainerViewModel {
                 return false
             })
         }
+    }
+
+    @MainActor
+    private func checkAndRequestNotificationAuthorization() async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        if settings.authorizationStatus == .notDetermined {
+            let alert = NSAlert()
+            alert.messageText = "Wymagane uprawnienia"
+            alert.informativeText = "Prosimy o zgodę na powiadomienia, aby powiadamiać o błędach budowania oraz awariach kontenerów."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+
+            do {
+                try await center.requestAuthorization(options: [.alert, .sound, .badge])
+            } catch {
+                print("Failed to request notification authorization: \(error)")
+            }
+        }
+    }
+
+    private func sendBuildCompletedNotification(containerName: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Build Completed"
+        content.body = "Zakończono tworzenie kontenera \(containerName)."
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    public func notifyCrash(containerId: String, containerName: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Container Crash / OOM"
+        content.body = "Krytyczny błąd: kontener \(containerName) uległ awarii."
+        content.categoryIdentifier = "CRASH_CATEGORY"
+        content.userInfo = ["containerId": containerId]
+
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
     }
     @MainActor
     public func startContainer(id: String) async {
