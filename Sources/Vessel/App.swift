@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct VesselApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var viewModel = ContainerViewModel()
 
     private let xpcDelegate = VesselXPCListenerDelegate()

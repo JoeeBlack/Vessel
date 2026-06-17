@@ -209,6 +209,21 @@ struct ContentView: View {
         .onAppear {
             // Already checked in initialization
         }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToContainer)) { notification in
+            if let id = notification.object as? String {
+                selectedSidebarItem = .containers
+                selectedContainerId = id
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .restartContainer)) { notification in
+            if let id = notification.object as? String {
+                Task {
+                    await viewModel.stopContainer(id: id, force: true)
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    await viewModel.startContainer(id: id)
+                }
+            }
+        }
     }
     
     @ViewBuilder
