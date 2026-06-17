@@ -1,11 +1,10 @@
 import SwiftUI
 import Charts
+import AppKit
 
 struct ContainerDetailView: View {
     let container: VesselContainer
     var viewModel: ContainerViewModel
-    
-    @State private var logSearchText = ""
 
     // Mock data for charts
     let cpuData: [Double] = [2, 3, 5, 4, 8, 12, 14, 10, 5, 8, 14.2, 10]
@@ -128,6 +127,33 @@ struct ContainerDetailView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(!isRunning)
+
+                        Button(action: {
+                            let category = "Container-\(container.name)"
+
+                            // Use NSWorkspace to open Console.app
+                            let consoleUrl = URL(fileURLWithPath: "/System/Applications/Utilities/Console.app")
+                            NSWorkspace.shared.openApplication(at: consoleUrl, configuration: NSWorkspace.OpenConfiguration())
+
+                            // Copy the category string to clipboard for the user to easily search
+                            let pasteboard = NSPasteboard.general
+                            pasteboard.clearContents()
+                            pasteboard.setString(category, forType: .string)
+
+                        }) {
+                            HStack {
+                                Image(systemName: "doc.text.fill")
+                                Text("Pokaż logi")
+                            }
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(isRunning ? AppTheme.accentBlue : Color.gray)
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!isRunning)
                     }
                 }
                 
@@ -147,41 +173,18 @@ struct ContainerDetailView: View {
                     .frame(width: 320)
                 }
                 
-                // Console Logs
+                // Shell Terminal View
                 if let inputPipe = viewModel.shellInputPipes[container.id],
                    let outputPipe = viewModel.shellOutputPipes[container.id] {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack {
-                            Text("Console Logs")
+                            Text("Terminal")
                                 .font(.system(size: 16, weight: .bold, design: .serif))
                                 .foregroundColor(AppTheme.textPrimary)
                             Spacer()
-
-                            // Log Search
-                            HStack {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundColor(AppTheme.textSecondary)
-                                TextField("Filter logs...", text: $logSearchText)
-                                    .textFieldStyle(.plain)
-                                    .foregroundColor(AppTheme.textPrimary)
-                                    .frame(width: 150)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Material.ultraThin)
-                            .background(AppTheme.cardBackground)
-                            .cornerRadius(8)
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.cardBorder, lineWidth: 1))
-
-                            Image(systemName: "line.3.horizontal.decrease")
-                                .foregroundColor(AppTheme.textSecondary)
-                                .padding(.leading, 8)
-                            Image(systemName: "arrow.down.to.line")
-                                .foregroundColor(AppTheme.textSecondary)
-                                .padding(.leading, 12)
                         }
                         
-                        // Console View
+                        // Terminal View
                         VStack(alignment: .leading, spacing: 0) {
                             // Mac Window Buttons (mock)
                             HStack(spacing: 8) {
@@ -195,7 +198,7 @@ struct ContainerDetailView: View {
                             VMTerminalView(
                                 inputHandle: inputPipe.fileHandleForWriting,
                                 outputHandle: outputPipe.fileHandleForReading,
-                                filterText: logSearchText
+                                filterText: ""
                             )
                             .padding(.horizontal, 8)
                             .padding(.bottom, 8)
@@ -210,9 +213,6 @@ struct ContainerDetailView: View {
                 
             }
             .padding(40)
-        }
-        .task(id: container.id) {
-            await viewModel.streamLogs(for: container.id)
         }
         .task(id: container.id) {
             await viewModel.subscribeToStats(for: container.id)

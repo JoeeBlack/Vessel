@@ -1,3 +1,4 @@
+import OSLog
 import Foundation
 import Containerization
 import ContainerizationExtras
@@ -38,7 +39,6 @@ public final class ContainerDaemon: @unchecked Sendable {
     private struct ActiveContainer {
         let vessel: VesselContainer
         var linux: LinuxContainer?
-        var logStream: AsyncStream<String>?
         var portForwarders: [PortForwarder] = []
     }
     
@@ -48,35 +48,30 @@ public final class ContainerDaemon: @unchecked Sendable {
     }
     
     private final class LogWriter: Writer {
-        let prefix: String
-        let continuation: AsyncStream<String>.Continuation
+        let logger: Logger
+        let isError: Bool
         
-        // ⚡ Bolt Optimization: Cache DateFormatter. Instantiating it is notoriously slow.
-        private let dateFormatter: DateFormatter = {
-            let df = DateFormatter()
-            df.dateFormat = "HH:mm:ss.SSS"
-            return df
-        }()
-
-        init(prefix: String, continuation: AsyncStream<String>.Continuation) {
-            self.prefix = prefix
-            self.continuation = continuation
+        init(containerName: String, isError: Bool) {
+            self.logger = Logger(subsystem: "com.vessel.app", category: "Container-\(containerName)")
+            self.isError = isError
         }
         
         func write(_ data: Data) throws {
             if let string = String(data: data, encoding: .utf8) {
-                let timeStr = dateFormatter.string(from: Date())
                 // ⚡ Bolt Optimization: Use .split instead of .components to avoid allocating new Arrays and Strings
                 let lines = string.split(whereSeparator: \.isNewline)
                 for line in lines {
                     guard !line.isEmpty else { continue }
-                    continuation.yield("\(timeStr) \(prefix) \(line)")
+                    if isError {
+                        logger.error("\(line, privacy: .public)")
+                    } else {
+                        logger.info("\(line, privacy: .public)")
+                    }
                 }
             }
         }
         
         func close() throws {
-            continuation.finish()
         }
     }
     
@@ -120,7 +115,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         for var vessel in vessels {
             // Mark as stopped initially
             vessel = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes)
-            activeContainers[vessel.id] = ActiveContainer(vessel: vessel, linux: nil, logStream: nil)
+            activeContainers[vessel.id] = ActiveContainer(vessel: vessel, linux: nil)
         }
     }
     
@@ -412,11 +407,6 @@ public final class ContainerDaemon: @unchecked Sendable {
         )
         debugLog("VZVirtualMachineManager initialized")
         
-        var logContinuation: AsyncStream<String>.Continuation!
-        let stream = AsyncStream<String> { cont in
-            logContinuation = cont
-        }
-        
         debugLog("Creating container instance...")
         let image = try await store.get(reference: normalizedRef)
         let platform = Platform(arch: "arm64", os: "linux", variant: "v8")
@@ -476,8 +466,8 @@ public final class ContainerDaemon: @unchecked Sendable {
             container.mounts.append(Mount.share(source: volume.host, destination: volume.container))
         }
         
-        let stdoutWriter = LogWriter(prefix: "STDOUT", continuation: logContinuation)
-        let stderrWriter = LogWriter(prefix: "STDERR", continuation: logContinuation)
+        let stdoutWriter = LogWriter(containerName: name, isError: false)
+        let stderrWriter = LogWriter(containerName: name, isError: true)
         container.stdout = stdoutWriter
         container.stderr = stderrWriter
         
@@ -526,7 +516,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             domain: domain
         )
         
-        activeContainers[containerId] = ActiveContainer(vessel: vessel, linux: container, logStream: stream, portForwarders: activeForwarders)
+        activeContainers[containerId] = ActiveContainer(vessel: vessel, linux: container, portForwarders: activeForwarders)
         saveContainers()
         debugLog("Container added to activeContainers")
     }
@@ -579,7 +569,6 @@ public final class ContainerDaemon: @unchecked Sendable {
 
         // Recreate linux container if it doesn't exist
         var linux = active.linux
-        var stream = active.logStream
         
         if linux == nil {
             let network: SimpleNATNetwork? = vessel.networkingEnabled ? SimpleNATNetwork() : nil
@@ -611,11 +600,6 @@ public final class ContainerDaemon: @unchecked Sendable {
                 initialFilesystem: initfs,
                 bootlog: nil
             )
-            
-            var logContinuation: AsyncStream<String>.Continuation!
-            stream = AsyncStream<String> { cont in
-                logContinuation = cont
-            }
             
             let containerRoot = storePath.appendingPathComponent("containers").appendingPathComponent(containerId)
             let fsPath = containerRoot.appendingPathComponent("rootfs.ext4")
@@ -670,8 +654,8 @@ public final class ContainerDaemon: @unchecked Sendable {
                 container.mounts.append(Mount.share(source: volume.host, destination: volume.container))
             }
             
-            let stdoutWriter = LogWriter(prefix: "STDOUT", continuation: logContinuation)
-            let stderrWriter = LogWriter(prefix: "STDERR", continuation: logContinuation)
+            let stdoutWriter = LogWriter(containerName: vessel.name, isError: false)
+            let stderrWriter = LogWriter(containerName: vessel.name, isError: true)
             container.stdout = stdoutWriter
             container.stderr = stderrWriter
             debugLog("Calling container.create()...")
@@ -705,7 +689,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
 
         let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.networkingEnabled ? "127.0.0.1" : nil, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: nil, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
-        activeContainers[containerId] = ActiveContainer(vessel: updated, linux: linux, logStream: stream, portForwarders: activeForwarders)
+        activeContainers[containerId] = ActiveContainer(vessel: updated, linux: linux, portForwarders: activeForwarders)
         saveContainers()
     }
     
@@ -807,7 +791,7 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
 
         let vessel = active.vessel
         let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: force ? "Force Stopped by user" : "Stopped by user", rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
-        activeContainers[containerId] = ActiveContainer(vessel: updated, linux: nil, logStream: nil, portForwarders: [])
+        activeContainers[containerId] = ActiveContainer(vessel: updated, linux: nil, portForwarders: [])
         saveContainers()
     }
     
@@ -837,16 +821,6 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         saveContainers()
     }
     
-    public func streamLogs(for id: String) -> AsyncStream<String> {
-        if let active = activeContainers[id], let stream = active.logStream {
-            return stream
-        }
-        
-        return AsyncStream { continuation in
-            continuation.yield("No active stream found for container \(id)")
-            continuation.finish()
-        }
-    }
         
         public func fetchImages() async throws -> [VesselImage] {
             let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")

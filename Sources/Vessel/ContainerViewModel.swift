@@ -73,9 +73,6 @@ public class ContainerViewModel {
     // Zbiera ID kontenerów, na których aktualnie wykonywana jest asynchroniczna operacja, by blokować interfejs UI
     public var loadingContainers: Set<String> = []
     
-    // Aktualnie strumieniowane logi wybranego kontenera
-    public var currentLogs: [String] = []
-    
     // Shell State
     public var shellInputPipes: [String: Pipe] = [:]
     public var shellOutputPipes: [String: Pipe] = [:]
@@ -171,7 +168,6 @@ public class ContainerViewModel {
             try await daemon.start(containerId: id)
             await fetchInitialWorkloads()
             
-            Task { await streamLogs(for: id) }
             Task { await subscribeToStats(for: id) }
         } catch {
             print("Błąd podczas uruchamiania kontenera: \(error.localizedDescription)")
@@ -213,21 +209,6 @@ public class ContainerViewModel {
         } catch {
             print("Błąd podczas usuwania kontenera: \(error.localizedDescription)")
             self.errorMessage = "Failed to delete container: \(error.localizedDescription)"
-        }
-    }
-    
-    @MainActor
-    public func streamLogs(for id: String) async {
-        // Czyścimy poprzednie logi za każdym razem, gdy wywołujemy metodę dla nowego kontenera
-        currentLogs.removeAll()
-        
-        let stream = daemon.streamLogs(for: id)
-        
-        // Czekamy w pętli na każdą nową wygenerowaną linię
-        for await line in stream {
-            // Ze względu na mechanizmy `.task` w SwiftUI, kiedy element straci na ważności 
-            // (użytkownik kliknie inny kontener), pętla automatycznie zostanie odwołana i zakończona.
-            currentLogs.append(line)
         }
     }
     
