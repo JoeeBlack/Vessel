@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MarketplaceView: View {
+    @Bindable var viewModel: ContainerViewModel
     let columns = [
         GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 24)
     ]
@@ -75,6 +76,13 @@ struct MarketplaceView: View {
                         stars: "12.4k",
                         icon: "cylinder.split.1x2",
                         iconColor: .red,
+                        yamlTemplate: """
+                        services:
+                          redis:
+                            image: redis:latest
+                            ports:
+                              - "6379:6379"
+                        """,
                         isPrimaryButton: true
                     )
                     
@@ -86,7 +94,16 @@ struct MarketplaceView: View {
                         downloads: "1B+",
                         stars: nil,
                         icon: "server.rack",
-                        iconColor: AppTheme.accentBlue
+                        iconColor: AppTheme.accentBlue,
+                        yamlTemplate: """
+                        services:
+                          postgres:
+                            image: postgres:latest
+                            environment:
+                              POSTGRES_PASSWORD: "admin"
+                            ports:
+                              - "5432:5432"
+                        """
                     )
                     
                     // NGINX
@@ -97,7 +114,14 @@ struct MarketplaceView: View {
                         downloads: "1B+",
                         stars: nil,
                         icon: "globe",
-                        iconColor: AppTheme.runningGreen
+                        iconColor: AppTheme.runningGreen,
+                        yamlTemplate: """
+                        services:
+                          nginx:
+                            image: nginx:latest
+                            ports:
+                              - "80:80"
+                        """
                     )
                     
                     // Node.js
@@ -108,7 +132,12 @@ struct MarketplaceView: View {
                         downloads: "1B+",
                         stars: nil,
                         icon: "n.circle.fill",
-                        iconColor: .green
+                        iconColor: .green,
+                        yamlTemplate: """
+                        services:
+                          node:
+                            image: node:latest
+                        """
                     )
                     
                     // Python
@@ -119,7 +148,12 @@ struct MarketplaceView: View {
                         downloads: "1B+",
                         stars: nil,
                         icon: "curlybraces",
-                        iconColor: .blue
+                        iconColor: .blue,
+                        yamlTemplate: """
+                        services:
+                          python:
+                            image: python:latest
+                        """
                     )
                 }
             }
@@ -127,7 +161,7 @@ struct MarketplaceView: View {
         }
     }
     
-    private func marketplaceCard(title: String, subtitle: String, description: String, downloads: String, stars: String?, icon: String, iconColor: Color, isPrimaryButton: Bool = false) -> some View {
+    private func marketplaceCard(title: String, subtitle: String, description: String, downloads: String, stars: String?, icon: String, iconColor: Color, yamlTemplate: String, isPrimaryButton: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
             HStack(alignment: .top) {
@@ -203,7 +237,7 @@ struct MarketplaceView: View {
                 Spacer()
                 
                 if isPrimaryButton {
-                    Button(action: {}) {
+                    Button(action: { deploy(yaml: yamlTemplate, title: title) }) {
                         Text("Deploy")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white)
@@ -215,7 +249,7 @@ struct MarketplaceView: View {
                     .buttonStyle(.plain)
                     .cursor(.pointingHand)
                 } else {
-                    Button(action: {}) {
+                    Button(action: { deploy(yaml: yamlTemplate, title: title) }) {
                         Image(systemName: "plus")
                             .font(.system(size: 14))
                             .foregroundColor(AppTheme.accentBlue)
@@ -239,5 +273,18 @@ struct MarketplaceView: View {
             LinearGradient(colors: [Color.white, Color(red: 240/255, green: 245/255, blue: 255/255)], startPoint: .topLeading, endPoint: .bottomTrailing)
             : nil
         )
+    }
+
+    private func deploy(yaml: String, title: String) {
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileURL = tempDir.appendingPathComponent("\(title.lowercased()).yaml")
+        do {
+            try yaml.write(to: fileURL, atomically: true, encoding: .utf8)
+            Task {
+                await viewModel.startPod(url: fileURL)
+            }
+        } catch {
+            print("Failed to write yaml template: \(error)")
+        }
     }
 }
