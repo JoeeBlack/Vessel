@@ -39,6 +39,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         let vessel: VesselContainer
         var linux: LinuxContainer?
         var logStream: AsyncStream<String>?
+        var portForwarders: [PortForwarder] = []
     }
     
     private struct ActivePod {
@@ -295,7 +296,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         return ref
     }
     
-    public func start(containerId: String, imageReference: String, name: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], domain: VesselDomain = .generic) async throws {
+    public func start(containerId: String, imageReference: String, name: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], portForwards: [VesselPortForward] = [], domain: VesselDomain = .generic) async throws {
 
         // 🛡️ Sentinel: Validate host file paths BEFORE configuration to prevent container escape
         // We throw an error early instead of silently ignoring invalid mounts which could cause data loss.
@@ -444,6 +445,27 @@ public final class ContainerDaemon: @unchecked Sendable {
         try await container.start()
         debugLog("Container started successfully!")
         
+        // Start Port Forwarders
+        var activeForwarders: [PortForwarder] = []
+        if networking {
+            // we use the IP configured for the container
+            // Currently our simplistic SimpleNATNetwork creates 192.168.64.X
+            let targetIP = container.interfaces?.first?.address.components(separatedBy: "/").first ?? "127.0.0.1"
+
+            for pf in portForwards {
+                guard pf.hostPort >= 1 && pf.hostPort <= 65535,
+                      pf.containerPort >= 1 && pf.containerPort <= 65535 else { continue }
+                let forwarder = PortForwarder(hostPort: UInt16(pf.hostPort), targetIP: targetIP, targetPort: UInt16(pf.containerPort))
+                do {
+                    try forwarder.start()
+                    activeForwarders.append(forwarder)
+                    debugLog("Started port forwarder \(pf.hostPort)->\(targetIP):\(pf.containerPort)")
+                } catch {
+                    debugLog("Failed to start port forwarder for \(pf.hostPort): \(error)")
+                }
+            }
+        }
+
         let vessel = VesselContainer(
             id: containerId,
             name: name,
@@ -458,10 +480,11 @@ public final class ContainerDaemon: @unchecked Sendable {
             memoryGB: memoryGB,
             envVars: envVars,
             volumes: volumes,
+            portForwards: portForwards,
             domain: domain
         )
         
-        activeContainers[containerId] = ActiveContainer(vessel: vessel, linux: container, logStream: stream)
+        activeContainers[containerId] = ActiveContainer(vessel: vessel, linux: container, logStream: stream, portForwarders: activeForwarders)
         saveContainers()
         debugLog("Container added to activeContainers")
     }
@@ -623,8 +646,24 @@ public final class ContainerDaemon: @unchecked Sendable {
         try await linuxContainer.start()
         debugLog("linuxContainer.start() succeeded!")
         
-        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.networkingEnabled ? "127.0.0.1" : nil, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: nil, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes)
-        activeContainers[containerId] = ActiveContainer(vessel: updated, linux: linux, logStream: stream)
+        var activeForwarders: [PortForwarder] = []
+        if vessel.networkingEnabled {
+            let targetIP = linuxContainer.interfaces?.first?.address.components(separatedBy: "/").first ?? "127.0.0.1"
+            for pf in vessel.portForwards {
+                guard pf.hostPort >= 1 && pf.hostPort <= 65535,
+                      pf.containerPort >= 1 && pf.containerPort <= 65535 else { continue }
+                let forwarder = PortForwarder(hostPort: UInt16(pf.hostPort), targetIP: targetIP, targetPort: UInt16(pf.containerPort))
+                do {
+                    try forwarder.start()
+                    activeForwarders.append(forwarder)
+                } catch {
+                    debugLog("Failed to start port forwarder for \(pf.hostPort): \(error)")
+                }
+            }
+        }
+
+        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.networkingEnabled ? "127.0.0.1" : nil, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: nil, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
+        activeContainers[containerId] = ActiveContainer(vessel: updated, linux: linux, logStream: stream, portForwarders: activeForwarders)
         saveContainers()
     }
     
@@ -712,6 +751,10 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
 
         guard let active = activeContainers[containerId], let linux = active.linux else { return }
 
+        for pf in active.portForwarders {
+            pf.stop()
+        }
+
         if force {
             // Some containers might be stubborn, stop them forcefully. The api currently provides stop()
             // In a real framework extension, a kill() signal would be sent. Here we call stop and release resources.
@@ -721,8 +764,8 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         }
 
         let vessel = active.vessel
-        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: force ? "Force Stopped by user" : "Stopped by user", rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes)
-        activeContainers[containerId] = ActiveContainer(vessel: updated, linux: nil, logStream: nil)
+        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: force ? "Force Stopped by user" : "Stopped by user", rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
+        activeContainers[containerId] = ActiveContainer(vessel: updated, linux: nil, logStream: nil, portForwarders: [])
         saveContainers()
     }
     
@@ -736,8 +779,13 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
             return
         }
 
-        if let active = activeContainers[containerId], let linux = active.linux {
-            try? await linux.stop()
+        if let active = activeContainers[containerId] {
+            for pf in active.portForwarders {
+                pf.stop()
+            }
+            if let linux = active.linux {
+                try? await linux.stop()
+            }
         }
         
         let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")

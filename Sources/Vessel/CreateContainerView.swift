@@ -25,12 +25,19 @@ struct CreateContainerView: View {
         var containerPath: String = ""
     }
     @State private var volumes: [VolumeMount] = []
+
+    struct PortForwarding: Identifiable {
+        let id = UUID()
+        var hostPort: String = ""
+        var containerPort: String = ""
+    }
+    @State private var portForwards: [PortForwarding] = []
     
     @State private var selectedDomain: VesselDomain = .generic
 
     @State private var availableImages: [VesselImage] = []
     
-    var onCreate: (_ name: String, _ image: String, _ rootfs: Double, _ rosetta: Bool, _ networking: Bool, _ cpus: Int, _ memoryGB: Double, _ envVars: [String: String], _ volumes: [(host: String, container: String)], _ domain: VesselDomain) -> Void
+    var onCreate: (_ name: String, _ image: String, _ rootfs: Double, _ rosetta: Bool, _ networking: Bool, _ cpus: Int, _ memoryGB: Double, _ envVars: [String: String], _ volumes: [(host: String, container: String)], _ portForwards: [(hostPort: Int, containerPort: Int)], _ domain: VesselDomain) -> Void
     
     var body: some View {
         VStack(spacing: 0) {
@@ -310,6 +317,60 @@ struct CreateContainerView: View {
                                 }
                             }
                         }
+
+                        Divider().background(AppTheme.cardBorder).padding(.vertical, 8)
+
+                        // Port Forwarding
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Port Forwarding")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(AppTheme.textPrimary)
+                                Spacer()
+                                Button(action: {
+                                    portForwards.append(PortForwarding())
+                                }) {
+                                    Image(systemName: "plus.circle.fill")
+                                        .foregroundColor(AppTheme.accentBlue)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Add port forward")
+                                .accessibilityLabel("Add port forward")
+                            }
+
+                            ForEach($portForwards) { $pf in
+                                HStack {
+                                    TextField("Host Port (e.g. 8080)", text: $pf.hostPort)
+                                        .textFieldStyle(.plain)
+                                        .padding(8)
+                                        .background(AppTheme.mainBackgroundTop)
+                                        .cornerRadius(6)
+                                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(AppTheme.cardBorder, lineWidth: 1))
+                                        .foregroundColor(AppTheme.textPrimary)
+
+                                    Image(systemName: "arrow.right")
+                                        .foregroundColor(AppTheme.textSecondary)
+
+                                    TextField("Container Port (e.g. 80)", text: $pf.containerPort)
+                                        .textFieldStyle(.plain)
+                                        .padding(8)
+                                        .background(AppTheme.mainBackgroundTop)
+                                        .cornerRadius(6)
+                                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(AppTheme.cardBorder, lineWidth: 1))
+                                        .foregroundColor(AppTheme.textPrimary)
+
+                                    Button(action: {
+                                        portForwards.removeAll(where: { $0.id == pf.id })
+                                    }) {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundColor(.red)
+                                    }
+                                    .buttonStyle(.plain)
+                                     .help("Remove port forward")
+                                     .accessibilityLabel("Remove port forward")
+                                }
+                            }
+                        }
                     }
                     .padding(20)
                     .background(AppTheme.cardBackground)
@@ -374,8 +435,15 @@ struct CreateContainerView: View {
         for v in volumes where !v.hostPath.isEmpty && !v.containerPath.isEmpty {
             vMap.append((host: v.hostPath, container: v.containerPath))
         }
+
+        var pMap: [(hostPort: Int, containerPort: Int)] = []
+        for pf in portForwards {
+            if let hp = Int(pf.hostPort), let cp = Int(pf.containerPort), hp >= 1, hp <= 65535, cp >= 1, cp <= 65535 {
+                pMap.append((hostPort: hp, containerPort: cp))
+            }
+        }
         
-        onCreate(containerName, selectedImage, rootfsSize, enableRosetta, enableNetworking, Int(cpuCount), memoryGB, envMap, vMap, selectedDomain)
+        onCreate(containerName, selectedImage, rootfsSize, enableRosetta, enableNetworking, Int(cpuCount), memoryGB, envMap, vMap, pMap, selectedDomain)
         dismiss()
     }
 }

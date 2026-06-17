@@ -29,6 +29,16 @@ public struct VesselVolume: Codable, Hashable, Sendable {
     }
 }
 
+public struct VesselPortForward: Codable, Hashable, Sendable {
+    public let hostPort: Int
+    public let containerPort: Int
+
+    public init(hostPort: Int, containerPort: Int) {
+        self.hostPort = hostPort
+        self.containerPort = containerPort
+    }
+}
+
 public struct VesselPod: Identifiable, Codable, Hashable, Sendable {
     public let id: String
     public let name: String
@@ -47,6 +57,30 @@ public struct VesselPod: Identifiable, Codable, Hashable, Sendable {
         self.cpus = cpus
         self.memoryGB = memoryGB
         self.domain = domain
+    }
+
+
+
+
+
+
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, status, containers, cpus, memoryGB, domain
+    }
+
+
+
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(status, forKey: .status)
+        try container.encode(containers, forKey: .containers)
+        try container.encode(cpus, forKey: .cpus)
+        try container.encode(memoryGB, forKey: .memoryGB)
+        try container.encode(domain, forKey: .domain)
     }
 
     public init(from decoder: Decoder) throws {
@@ -102,9 +136,10 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
     public let memoryGB: Double
     public let envVars: [String: String]
     public let volumes: [VesselVolume]
+    public let portForwards: [VesselPortForward]
     public let domain: VesselDomain
     
-    public init(id: String, name: String, subtitle: String, image: String, status: VesselStatus, ipAddress: String? = nil, dnsName: String? = nil, uptime: String? = nil, ports: String? = nil, memoryUsage: String? = nil, volume: String? = nil, exitStatus: String? = nil, rosettaEnabled: Bool = false, networkingEnabled: Bool = true, rootfsSize: String = "8GB", cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], domain: VesselDomain = .generic) {
+    public init(id: String, name: String, subtitle: String, image: String, status: VesselStatus, ipAddress: String? = nil, dnsName: String? = nil, uptime: String? = nil, ports: String? = nil, memoryUsage: String? = nil, volume: String? = nil, exitStatus: String? = nil, rosettaEnabled: Bool = false, networkingEnabled: Bool = true, rootfsSize: String = "8GB", cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], portForwards: [VesselPortForward] = [], domain: VesselDomain = .generic) {
         self.id = id
         self.name = name
         self.subtitle = subtitle
@@ -124,7 +159,43 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
         self.memoryGB = memoryGB
         self.envVars = envVars
         self.volumes = volumes
+        self.portForwards = portForwards
         self.domain = domain
+    }
+
+
+
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, subtitle, image, status, ipAddress, dnsName, uptime, ports, memoryUsage, volume, exitStatus, rosettaEnabled, networkingEnabled, rootfsSize, cpus, memoryGB, envVars, volumes, portForwards, domain
+    }
+
+
+
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(subtitle, forKey: .subtitle)
+        try container.encode(image, forKey: .image)
+        try container.encode(status, forKey: .status)
+        try container.encodeIfPresent(ipAddress, forKey: .ipAddress)
+        try container.encodeIfPresent(dnsName, forKey: .dnsName)
+        try container.encodeIfPresent(uptime, forKey: .uptime)
+        try container.encodeIfPresent(ports, forKey: .ports)
+        try container.encodeIfPresent(memoryUsage, forKey: .memoryUsage)
+        try container.encodeIfPresent(volume, forKey: .volume)
+        try container.encodeIfPresent(exitStatus, forKey: .exitStatus)
+        try container.encode(rosettaEnabled, forKey: .rosettaEnabled)
+        try container.encode(networkingEnabled, forKey: .networkingEnabled)
+        try container.encode(rootfsSize, forKey: .rootfsSize)
+        try container.encode(cpus, forKey: .cpus)
+        try container.encode(memoryGB, forKey: .memoryGB)
+        try container.encode(envVars, forKey: .envVars)
+        try container.encode(volumes, forKey: .volumes)
+        try container.encode(portForwards, forKey: .portForwards)
+        try container.encode(domain, forKey: .domain)
     }
 
     public init(from decoder: Decoder) throws {
@@ -148,6 +219,7 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
         self.memoryGB = try container.decode(Double.self, forKey: .memoryGB)
         self.envVars = try container.decode([String: String].self, forKey: .envVars)
         self.volumes = try container.decode([VesselVolume].self, forKey: .volumes)
+        self.portForwards = try container.decodeIfPresent([VesselPortForward].self, forKey: .portForwards) ?? []
         self.domain = try container.decodeIfPresent(VesselDomain.self, forKey: .domain) ?? .generic
     }
 }
