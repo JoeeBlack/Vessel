@@ -21,7 +21,7 @@ struct ContentView: View {
         }
     }
 
-    @SwiftUI.State private var viewModel = ContainerViewModel()
+    @Bindable var viewModel: ContainerViewModel
     @SwiftUI.State private var selectedContainerId: String?
     @SwiftUI.State private var selectedSidebarItem: SidebarItem? = .containers
     @SwiftUI.State private var searchText: String = ""
