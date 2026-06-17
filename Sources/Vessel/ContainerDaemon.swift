@@ -5,6 +5,7 @@ import ContainerizationOS
 import ContainerizationEXT4
 import ContainerizationOCI
 import ContainerizationError
+import Virtualization
 
 public struct SimpleNATNetwork {
     private var nextIP: UInt32 = 200
@@ -224,6 +225,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         var containers: [VesselContainer] = []
         var linuxContainers: [String: LinuxContainer] = [:]
         
+        // Pods currently default to arm64, but can be updated later to handle rosetta per service
         let platform = Platform(arch: "arm64", os: "linux", variant: "v8")
         
         for service in project.services {
@@ -242,7 +244,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             let container = LinuxContainer("\(podId)-\(service.name)", rootfs: rootfs, vmm: vmm)
             container.cpus = 1
             container.memoryInBytes = 1.gib()
-            container.rosetta = true
+            container.rosetta = false
             
             var network = SimpleNATNetwork()
             if let interface = try? network.createInterface(container.id) {
@@ -283,9 +285,25 @@ public final class ContainerDaemon: @unchecked Sendable {
             // owned by other users, mitigating information disclosure.
             container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev", "hidepid=2"]))
 
+            // Note: we can't manually add VZLinuxRosettaDirectoryShare to container.mounts as a string.
+            // The apple/containerization package already automatically mounts VZLinuxRosettaDirectoryShare
+            // when container.rosetta = true and sets up binfmt_misc. However, to explicitly fulfill
+            // local system setup, we make sure it's enabled here.
+
             try await container.create()
             try await container.start()
             
+            if container.rosetta {
+                // Manually run binfmt_misc registration in guest VM
+                let binfmtConfig = ContainerizationOCI.Process(
+                    args: ["sh", "-c", "mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc; echo ':x86_64:M::\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x3e\\x00:\\xff\\xff\\xff\\xff\\xff\\xfe\\xfe\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff\\xff:/run/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register"],
+                    terminal: false
+                )
+                if let proc = try? await container.exec("setup-binfmt", configuration: binfmtConfig) {
+                    try? await proc.start()
+                }
+            }
+
             linuxContainers[service.name] = container
             
             containers.append(VesselContainer(
@@ -419,7 +437,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         
         debugLog("Creating container instance...")
         let image = try await store.get(reference: normalizedRef)
-        let platform = Platform(arch: "arm64", os: "linux", variant: "v8")
+        let platform = rosetta ? Platform(arch: "amd64", os: "linux") : Platform(arch: "arm64", os: "linux", variant: "v8")
         let fsPath = storePath.appendingPathComponent("containers").appendingPathComponent("\(containerId)-rootfs.ext4")
         let rootfs = try await image.unpack(for: platform, at: fsPath, blockSizeInBytes: UInt64(rootfsSizeGB * 1024 * 1024 * 1024), progress: nil)
 
@@ -435,7 +453,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             }
         }
         
-        let imageConfig = try await image.config(for: Platform(arch: "arm64", os: "linux", variant: "v8")).config
+        let imageConfig = try await image.config(for: platform).config
         if let config = imageConfig {
             let cwd = config.workingDir ?? "/"
             let env = config.env ?? []
@@ -487,6 +505,17 @@ public final class ContainerDaemon: @unchecked Sendable {
         try await container.start()
         debugLog("Container started successfully!")
         
+        if container.rosetta {
+            // Manually run binfmt_misc registration in guest VM
+            let binfmtConfig = ContainerizationOCI.Process(
+                args: ["sh", "-c", "mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc; echo ':x86_64:M::\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x3e\\x00:\\xff\\xff\\xff\\xff\\xff\\xfe\\xfe\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff\\xff:/run/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register"],
+                terminal: false
+            )
+            if let proc = try? await container.exec("setup-binfmt", configuration: binfmtConfig) {
+                try? await proc.start()
+            }
+        }
+
         // Start Port Forwarders
         var activeForwarders: [PortForwarder] = []
         if networking {
@@ -634,7 +663,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             }
             
             let image = try await store.get(reference: normalize(reference: vessel.image))
-            let platform = Platform(arch: "arm64", os: "linux", variant: "v8")
+            let platform = vessel.rosettaEnabled ? Platform(arch: "amd64", os: "linux") : Platform(arch: "arm64", os: "linux", variant: "v8")
             let imageConfig = try await image.config(for: platform).config
             
             if let config = imageConfig {
@@ -688,6 +717,17 @@ public final class ContainerDaemon: @unchecked Sendable {
         try await linuxContainer.start()
         debugLog("linuxContainer.start() succeeded!")
         
+        if linuxContainer.rosetta {
+            // Manually run binfmt_misc registration in guest VM
+            let binfmtConfig = ContainerizationOCI.Process(
+                args: ["sh", "-c", "mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc; echo ':x86_64:M::\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x3e\\x00:\\xff\\xff\\xff\\xff\\xff\\xfe\\xfe\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff\\xff:/run/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register"],
+                terminal: false
+            )
+            if let proc = try? await linuxContainer.exec("setup-binfmt", configuration: binfmtConfig) {
+                try? await proc.start()
+            }
+        }
+
         var activeForwarders: [PortForwarder] = []
         if vessel.networkingEnabled {
             let targetIP = linuxContainer.interfaces?.first?.address.components(separatedBy: "/").first ?? "127.0.0.1"
