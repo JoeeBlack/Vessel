@@ -53,7 +53,7 @@ struct MenuBarView: View {
                 .frame(height: 150)
             } else {
                 ScrollView {
-                    VStack(spacing: 0) {
+                    LazyVStack(spacing: 0) {
                         ForEach(viewModel.workloads) { workload in
                             MenuBarWorkloadRow(workload: workload, viewModel: viewModel)
                             if workload.id != viewModel.workloads.last?.id {
