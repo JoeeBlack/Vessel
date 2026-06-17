@@ -5,6 +5,9 @@ struct CreateContainerView: View {
     
     @State private var containerName: String = ""
     @State private var selectedImage: String = ""
+    @AppStorage("enableHaptics") private var enableHaptics: Bool = true
+    @State private var errorTrigger: Int = 0
+    @State private var successTrigger: Int = 0
     @State private var rootfsSize: Double = 8.0 // GB
     @State private var enableRosetta: Bool = false
     @State private var enableNetworking: Bool = true
@@ -402,11 +405,12 @@ struct CreateContainerView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .foregroundColor(.white)
-                        .background(containerName.trimmingCharacters(in: .whitespaces).isEmpty ? AppTheme.textSecondary.opacity(0.5) : AppTheme.accentBlue)
+                        .background(AppTheme.accentBlue)
                         .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
-                .disabled(containerName.trimmingCharacters(in: .whitespaces).isEmpty)
+                .sensoryFeedback(.error, trigger: errorTrigger) { _, _ in enableHaptics }
+                .sensoryFeedback(.success, trigger: successTrigger) { _, _ in enableHaptics }
             }
             .padding(24)
             .background(AppTheme.mainBackgroundTop)
@@ -429,6 +433,11 @@ struct CreateContainerView: View {
     }
     
     private func create() {
+        if containerName.trimmingCharacters(in: .whitespaces).isEmpty {
+            errorTrigger += 1
+            return
+        }
+
         var envMap: [String: String] = [:]
         for ev in envVars where !ev.key.isEmpty {
             envMap[ev.key] = ev.value
@@ -446,6 +455,7 @@ struct CreateContainerView: View {
             }
         }
         
+        successTrigger += 1
         onCreate(containerName, selectedImage, rootfsSize, enableRosetta, enableNetworking, Int(cpuCount), memoryGB, envMap, vMap, pMap, selectedDomain)
         dismiss()
     }

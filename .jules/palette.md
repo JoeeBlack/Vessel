@@ -16,3 +16,6 @@
 ## 2026-06-17 - Custom SwiftUI Views in Menu Bar
 **Learning:** By default, `MenuBarExtra` renders its content as a standard macOS menu. To render complex custom SwiftUI layouts (like lists with buttons, graphs, and stats) from the menu bar icon, you must change the style.
 **Action:** Use the `.menuBarExtraStyle(.window)` modifier on the `MenuBarExtra` to present it as a popover window instead of a standard list menu.
+## $(date +%Y-%m-%d) - Add Sensory Feedback (Haptics)
+**Learning:** For a faster perceived app response time on macOS trackpads without CPU overhead, use `.sensoryFeedback(trigger:)` from macOS 14+. It can be toggled by coupling the condition inside the modifier logic with an `@AppStorage` variable.
+**Action:** When adding micro-interactions to start/stop or errors in Apple platform apps, implement `.sensoryFeedback(.impact)` or `.sensoryFeedback(.error)` and ensure they are user-configurable.

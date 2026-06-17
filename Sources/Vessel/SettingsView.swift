@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @AppStorage("enableHaptics") private var enableHaptics: Bool = true
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             // Header Area
@@ -19,6 +21,29 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 32) {
                     
+                    // UI Settings
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Appearance & Feedback")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(AppTheme.textPrimary)
+
+                        Toggle(isOn: $enableHaptics) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Sensory Feedback")
+                                    .foregroundColor(AppTheme.textPrimary)
+                                Text("Provide haptic feedback on trackpad when performing actions like starting/stopping containers.")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(AppTheme.textSecondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                        .tint(AppTheme.accentBlue)
+                    }
+                    .padding(20)
+                    .background(Material.ultraThin)
+                    .background(AppTheme.cardBackground)
+                    .cornerRadius(12)
+
                     // CLI Tool Settings
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Command Line Interface")

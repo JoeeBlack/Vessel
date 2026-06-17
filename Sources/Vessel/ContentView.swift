@@ -32,6 +32,9 @@ struct ContentView: View {
     @SwiftUI.State private var showingCreateContainer = false
     @SwiftUI.State private var showError = false
     
+    @AppStorage("enableHaptics") private var enableHaptics: Bool = true
+    @SwiftUI.State private var errorTrigger: Int = 0
+
     @SwiftUI.State private var isFrameworkInstalled: Bool = {
         let dir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel")
         let installedPath = dir.appendingPathComponent("installed").path
@@ -198,9 +201,11 @@ struct ContentView: View {
         }
         .onChange(of: viewModel.errorMessage) { _, newValue in
             if newValue != nil {
+                errorTrigger += 1
                 showError = true
             }
         }
+        .sensoryFeedback(.error, trigger: errorTrigger) { _, _ in enableHaptics }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) { viewModel.errorMessage = nil }
         } message: {
