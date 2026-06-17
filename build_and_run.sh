@@ -17,7 +17,7 @@ swift build
 BIN_PATH=$(swift build --show-bin-path)
 
 echo "🔐 Podpisywanie binarne z uprawnieniami (entitlements)..."
-codesign --force --sign - --entitlements Vessel.entitlements "$BIN_PATH/Vessel"
+codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$BIN_PATH/Vessel"
 
 echo ""
 echo "======================================"
