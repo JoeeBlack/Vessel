@@ -16,7 +16,10 @@ let package = Package(
     targets: [
         .target(
             name: "VesselXPC",
-            path: "Sources/VesselXPC"
+            path: "Sources/VesselXPC",
+            swiftSettings: [
+                .unsafeFlags(["-whole-module-optimization"])
+            ]
         ),
         .executableTarget(
             name: "Vessel",
@@ -27,7 +30,13 @@ let package = Package(
                 .product(name: "Yams", package: "Yams"),
                 .product(name: "SystemPackage", package: "swift-system")
             ],
-            path: "Sources/Vessel"
+            path: "Sources/Vessel",
+            swiftSettings: [
+                .unsafeFlags(["-whole-module-optimization"])
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-dead_strip"])
+            ]
         ),
         .executableTarget(
             name: "cctl",
@@ -35,7 +44,13 @@ let package = Package(
                 "VesselXPC",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ],
-            path: "Sources/cctl"
+            path: "Sources/cctl",
+            swiftSettings: [
+                .unsafeFlags(["-whole-module-optimization"])
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-dead_strip"])
+            ]
         )
     ]
 )
