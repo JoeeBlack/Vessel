@@ -38,6 +38,21 @@ class VesselXPCServer: NSObject, VesselXPCProtocol {
             }
         }
     }
+
+    func wakeContainer(containerId: String, reply: @escaping (String?, Error?) -> Void) {
+        Task {
+            do {
+                try await daemon.start(containerId: containerId)
+                if let ip = daemon.getContainerIP(containerId: containerId) {
+                    reply(ip, nil)
+                } else {
+                    reply(nil, NSError(domain: "VesselXPC", code: 404, userInfo: [NSLocalizedDescriptionKey: "Failed to get IP for started container"]))
+                }
+            } catch {
+                reply(nil, error)
+            }
+        }
+    }
 }
 
 class VesselXPCListenerDelegate: NSObject, NSXPCListenerDelegate {
