@@ -78,7 +78,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
 EOF
 
 echo "🔐 5/6 Ad-Hoc Code Signing..."
-codesign --force --deep --sign - --entitlements Vessel.entitlements "$APP_BUNDLE"
+codesign --force --deep --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE"
 
 echo "💿 6/6 Generowanie pięknego pliku $DMG_NAME..."
 rm -f "$DMG_NAME"
