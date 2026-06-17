@@ -38,6 +38,7 @@ public final class PortForwarder: @unchecked Sendable {
 
         listener?.newConnectionHandler = { [weak self] connection in
             guard let self = self else { return }
+            AppNapManager.shared.recordActivity()
             self.handleNewConnection(connection)
         }
 
@@ -119,6 +120,7 @@ private final class ForwardedConnection: @unchecked Sendable {
     private func forward(from source: NWConnection, to destination: NWConnection) {
         source.receive(minimumIncompleteLength: 1, maximumLength: 8192) { [weak self] content, _, isComplete, error in
             if let content = content, !content.isEmpty {
+                AppNapManager.shared.recordActivity()
                 destination.send(content: content, completion: .contentProcessed { sendError in
                     if sendError != nil {
                         self?.stop()
