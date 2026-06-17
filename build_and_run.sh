@@ -3,9 +3,6 @@
 # Zatrzymanie skryptu w przypadku wystąpienia błędu
 set -e
 
-# Nadanie praw do wykonywania samemu skryptowi (zgodnie z prośbą)
-chmod +x "$0"
-
 echo "======================================"
 echo "🚢 Budowanie projektu Vessel (macOS)..."
 echo "======================================"
