@@ -196,6 +196,32 @@ public final class ContainerDaemon: @unchecked Sendable {
         let projectName = yamlPath.deletingPathExtension().lastPathComponent
         let project = try ComposeParser.parse(yaml: yamlString, projectName: projectName)
         
+        // 🛡️ Sentinel: Ensure App Sandbox access to host paths using Security-Scoped Bookmarks
+        for service in project.services {
+            for volumeStr in service.volumes {
+                let parts = volumeStr.split(separator: ":", maxSplits: 1).map(String.init)
+                if parts.count == 2 {
+                    let hostPath = parts[0]
+                    if hostPath.hasPrefix("/") || hostPath.hasPrefix("~") || hostPath.hasPrefix(".") {
+                        // It's a path, let's process it
+                        var actualHostPath = NSString(string: hostPath).expandingTildeInPath
+                        if hostPath.hasPrefix("./") {
+                            actualHostPath = yamlPath.deletingLastPathComponent().path + "/" + String(hostPath.dropFirst(2))
+                        } else if hostPath.hasPrefix("../") {
+                            // Basic support for ../ but resolving symlinks covers this mostly if converted to absolute first
+                            let absUrl = URL(fileURLWithPath: hostPath, relativeTo: yamlPath.deletingLastPathComponent())
+                            actualHostPath = absUrl.path
+                        } else if hostPath == "." {
+                            actualHostPath = yamlPath.deletingLastPathComponent().path
+                        }
+
+                        let resolvedHostPath = URL(fileURLWithPath: actualHostPath).resolvingSymlinksInPath().path
+                        try BookmarkManager.shared.resolveAndAccess(path: resolvedHostPath)
+                    }
+                }
+            }
+        }
+
         let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
         let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
         let contentStore = try LocalContentStore(path: contentPath)
@@ -350,6 +376,11 @@ public final class ContainerDaemon: @unchecked Sendable {
                     throw NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "Security Error: Attempted to mount restricted host path \(volume.host)"])
                 }
             }
+        }
+
+        // 🛡️ Sentinel: Ensure App Sandbox access to host paths using Security-Scoped Bookmarks
+        for volume in volumes {
+            try BookmarkManager.shared.resolveAndAccess(path: volume.host)
         }
 
         func debugLog(_ msg: String) {
@@ -575,6 +606,11 @@ public final class ContainerDaemon: @unchecked Sendable {
                     throw NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "Security Error: Attempted to mount restricted host path \(volume.host)"])
                 }
             }
+        }
+
+        // 🛡️ Sentinel: Ensure App Sandbox access to host paths using Security-Scoped Bookmarks
+        for volume in vessel.volumes {
+            try BookmarkManager.shared.resolveAndAccess(path: volume.host)
         }
 
         // Recreate linux container if it doesn't exist
