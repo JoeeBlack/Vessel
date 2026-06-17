@@ -159,6 +159,14 @@ struct PodCardView: View {
         .frame(height: 240)
         .background(
             ZStack {
+                // Liquid Glass Ambient Glow
+                Circle()
+                    .fill(AppTheme.runningGreen)
+                    .frame(width: 150, height: 150)
+                    .blur(radius: 50)
+                    .opacity(isRunning ? 0.3 : 0.0)
+                    .animation(.easeInOut(duration: 1.0), value: isRunning)
+
                 Material.ultraThin
                 AppTheme.cardBackground
                 // Domain Color Strip for Pod
@@ -172,7 +180,7 @@ struct PodCardView: View {
                 }
             }
         )
-        .cornerRadius(16)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .stroke(isHovering ? AppTheme.accentBlue.opacity(0.5) : AppTheme.cardBorder, lineWidth: isHovering ? 2 : 1)
@@ -183,6 +191,5 @@ struct PodCardView: View {
                 isHovering = hovering
             }
         }
-        .drawingGroup()
     }
 }
