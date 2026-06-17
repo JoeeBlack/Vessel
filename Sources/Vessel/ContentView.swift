@@ -9,6 +9,7 @@ struct ContentView: View {
         case images = "Images"
         case networks = "Networks"
         case settings = "Settings"
+        case volumes = "Volumes"
         
         var id: String { self.rawValue }
         var icon: String {
@@ -16,6 +17,7 @@ struct ContentView: View {
             case .containers: return "cube.box"
             case .images: return "square.stack.3d.up"
             case .networks: return "network"
+            case .volumes: return "externaldrive"
             case .settings: return "gearshape"
             }
         }
@@ -157,6 +159,8 @@ struct ContentView: View {
                         ImagesListView()
                     } else if selectedSidebarItem == .networks {
                         NetworksListView()
+                    } else if selectedSidebarItem == .volumes {
+                        VolumesManagerView(viewModel: viewModel)
                     } else if selectedSidebarItem == .settings {
                         SettingsView()
                     } else {
