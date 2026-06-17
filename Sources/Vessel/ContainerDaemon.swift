@@ -6,6 +6,8 @@ import ContainerizationEXT4
 import ContainerizationOCI
 import ContainerizationError
 import Virtualization
+import Security
+import LocalAuthentication
 
 public struct SimpleNATNetwork {
     private var nextIP: UInt32 = 200
@@ -101,6 +103,56 @@ public final class ContainerDaemon: @unchecked Sendable {
         loadContainers()
         loadPods()
         loadDomainRules()
+    }
+
+    private func fetchFromKeychain(key: String) throws -> String {
+        let context = LAContext()
+        context.localizedReason = "Vessel requires access to secret '\(key)' to start the container."
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationContext as String: context
+        ]
+
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+
+        guard status == errSecSuccess else {
+            throw NSError(domain: "VesselKeychain", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Failed to retrieve key '\(key)' from Keychain (status: \(status))"])
+        }
+
+        guard var data = item as? Data else {
+            throw NSError(domain: "VesselKeychain", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid data format for key '\(key)' in Keychain"])
+        }
+
+        defer {
+            data.withUnsafeMutableBytes { ptr in
+                ptr.initializeMemory(as: UInt8.self, repeating: 0)
+            }
+        }
+
+        guard let secret = String(data: data, encoding: .utf8) else {
+            throw NSError(domain: "VesselKeychain", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to decode secret string for key '\(key)'"])
+        }
+
+        return secret
+    }
+
+    private func resolveEnvironment(_ envVars: [String: String]) throws -> [String] {
+        var resolved: [String] = []
+        for (key, value) in envVars {
+            if value.hasPrefix("keychain://") {
+                let keychainKey = String(value.dropFirst("keychain://".count))
+                let secret = try fetchFromKeychain(key: keychainKey)
+                resolved.append("\(key)=\(secret)")
+            } else {
+                resolved.append("\(key)=\(value)")
+            }
+        }
+        return resolved
     }
     
     private func saveContainers() {
@@ -263,9 +315,8 @@ public final class ContainerDaemon: @unchecked Sendable {
                 
                 container.workingDirectory = cwd
                 var allEnvs = env
-                for (key, value) in service.environment {
-                    allEnvs.append("\(key)=\(value)")
-                }
+                let resolvedServiceEnv = try resolveEnvironment(service.environment)
+                allEnvs.append(contentsOf: resolvedServiceEnv)
                 container.environment = allEnvs
                 container.arguments = args
                 
@@ -273,11 +324,8 @@ public final class ContainerDaemon: @unchecked Sendable {
                     container.user = ContainerizationOCI.User(username: rawString)
                 }
             } else {
-                var envs: [String] = []
-                for (key, value) in service.environment {
-                    envs.append("\(key)=\(value)")
-                }
-                container.environment.append(contentsOf: envs)
+                let resolvedServiceEnv = try resolveEnvironment(service.environment)
+                container.environment.append(contentsOf: resolvedServiceEnv)
             }
             
             // 🛡️ Sentinel: Borrow 'hidepid=2' from Kicksecure to harden the container environment.
@@ -303,6 +351,9 @@ public final class ContainerDaemon: @unchecked Sendable {
                     try? await proc.start()
                 }
             }
+            
+            // Zero out environment to prevent secret leaking
+            container.environment = []
 
             linuxContainers[service.name] = container
             
@@ -461,9 +512,8 @@ public final class ContainerDaemon: @unchecked Sendable {
             
             container.workingDirectory = cwd
             var allEnvs = env
-            for (key, value) in envVars {
-                allEnvs.append("\(key)=\(value)")
-            }
+            let resolvedServiceEnv = try resolveEnvironment(envVars)
+            allEnvs.append(contentsOf: resolvedServiceEnv)
             container.environment = allEnvs
             container.arguments = args
             
@@ -471,11 +521,8 @@ public final class ContainerDaemon: @unchecked Sendable {
                 container.user = ContainerizationOCI.User(username: rawString)
             }
         } else {
-            var envs: [String] = []
-            for (key, value) in envVars {
-                envs.append("\(key)=\(value)")
-            }
-            container.environment.append(contentsOf: envs)
+            let resolvedServiceEnv = try resolveEnvironment(envVars)
+            container.environment.append(contentsOf: resolvedServiceEnv)
         }
         
         // 🛡️ Sentinel: Borrow 'hidepid=2' from Kicksecure to harden the container environment.
@@ -515,6 +562,9 @@ public final class ContainerDaemon: @unchecked Sendable {
                 try? await proc.start()
             }
         }
+        
+        // Zero out environment to prevent secret leaking
+        container.environment = []
 
         // Start Port Forwarders
         var activeForwarders: [PortForwarder] = []
@@ -673,9 +723,8 @@ public final class ContainerDaemon: @unchecked Sendable {
                 
                 container.workingDirectory = cwd
                 var allEnvs = env
-                for (key, value) in vessel.envVars {
-                    allEnvs.append("\(key)=\(value)")
-                }
+                let resolvedServiceEnv = try resolveEnvironment(vessel.envVars)
+                allEnvs.append(contentsOf: resolvedServiceEnv)
                 container.environment = allEnvs
                 container.arguments = args
                 
@@ -683,11 +732,8 @@ public final class ContainerDaemon: @unchecked Sendable {
                     container.user = ContainerizationOCI.User(username: rawString)
                 }
             } else {
-                var envs: [String] = []
-                for (key, value) in vessel.envVars {
-                    envs.append("\(key)=\(value)")
-                }
-                container.environment.append(contentsOf: envs)
+                let resolvedServiceEnv = try resolveEnvironment(vessel.envVars)
+                container.environment.append(contentsOf: resolvedServiceEnv)
             }
             
             // 🛡️ Sentinel: Borrow 'hidepid=2' from Kicksecure to harden the container environment.
@@ -727,6 +773,9 @@ public final class ContainerDaemon: @unchecked Sendable {
                 try? await proc.start()
             }
         }
+        
+        // Zero out environment to prevent secret leaking
+        linuxContainer.environment = []
 
         var activeForwarders: [PortForwarder] = []
         if vessel.networkingEnabled {
