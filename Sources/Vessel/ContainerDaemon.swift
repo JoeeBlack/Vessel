@@ -208,6 +208,13 @@ public final class ContainerDaemon: @unchecked Sendable {
         return containers + pods
     }
 
+    public func getContainerIP(containerId: String) -> String? {
+        if let active = activeContainers[containerId], let linux = active.linux {
+            return linux.interfaces?.first?.address.components(separatedBy: "/").first
+        }
+        return nil
+    }
+
     public func fetchDomainRules() -> [DomainRule] {
         return domainRules
     }
