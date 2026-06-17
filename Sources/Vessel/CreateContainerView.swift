@@ -8,6 +8,7 @@ struct CreateContainerView: View {
     @State private var rootfsSize: Double = 8.0 // GB
     @State private var enableRosetta: Bool = false
     @State private var enableNetworking: Bool = true
+    @State private var isBackground: Bool = false
     
     @State private var cpuCount: Double = 2.0 // CPU Cores
     @State private var memoryGB: Double = 2.0 // GB
@@ -37,7 +38,7 @@ struct CreateContainerView: View {
 
     @State private var availableImages: [VesselImage] = []
     
-    var onCreate: (_ name: String, _ image: String, _ rootfs: Double, _ rosetta: Bool, _ networking: Bool, _ cpus: Int, _ memoryGB: Double, _ envVars: [String: String], _ volumes: [(host: String, container: String)], _ portForwards: [(hostPort: Int, containerPort: Int)], _ domain: VesselDomain) -> Void
+    var onCreate: (_ name: String, _ image: String, _ rootfs: Double, _ rosetta: Bool, _ networking: Bool, _ isBackground: Bool, _ cpus: Int, _ memoryGB: Double, _ envVars: [String: String], _ volumes: [(host: String, container: String)], _ portForwards: [(hostPort: Int, containerPort: Int)], _ domain: VesselDomain) -> Void
     
     var body: some View {
         VStack(spacing: 0) {
@@ -154,6 +155,18 @@ struct CreateContainerView: View {
                         .toggleStyle(.switch)
                         .tint(AppTheme.accentBlue)
                         
+                        Toggle(isOn: $isBackground) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Background Task (E-Cores)")
+                                    .foregroundColor(AppTheme.textPrimary)
+                                Text("Delegate workload to efficiency cores to save power and keep system quiet.")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(AppTheme.textSecondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                        .tint(AppTheme.accentBlue)
+
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text("Root Filesystem (ext4) Size")
@@ -446,7 +459,7 @@ struct CreateContainerView: View {
             }
         }
         
-        onCreate(containerName, selectedImage, rootfsSize, enableRosetta, enableNetworking, Int(cpuCount), memoryGB, envMap, vMap, pMap, selectedDomain)
+        onCreate(containerName, selectedImage, rootfsSize, enableRosetta, enableNetworking, isBackground, Int(cpuCount), memoryGB, envMap, vMap, pMap, selectedDomain)
         dismiss()
     }
 }

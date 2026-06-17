@@ -188,11 +188,11 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showingCreateContainer) {
-            CreateContainerView { name, image, rootfs, rosetta, networking, cpus, memoryGB, envVars, volumes, portForwards, domain in
+            CreateContainerView { name, image, rootfs, rosetta, networking, isBackground, cpus, memoryGB, envVars, volumes, portForwards, domain in
                 let vesselVolumes = volumes.map { VesselVolume(host: $0.host, container: $0.container) }
                 let vesselForwards = portForwards.map { VesselPortForward(hostPort: $0.hostPort, containerPort: $0.containerPort) }
                 Task {
-                    await viewModel.createContainer(name: name, image: image, rootfsSizeGB: rootfs, rosetta: rosetta, networking: networking, cpus: cpus, memoryGB: memoryGB, envVars: envVars, volumes: vesselVolumes, portForwards: vesselForwards, domain: domain)
+                    await viewModel.createContainer(name: name, image: image, rootfsSizeGB: rootfs, rosetta: rosetta, networking: networking, isBackground: isBackground, cpus: cpus, memoryGB: memoryGB, envVars: envVars, volumes: vesselVolumes, portForwards: vesselForwards, domain: domain)
                 }
             }
         }
