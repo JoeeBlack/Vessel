@@ -179,11 +179,11 @@ struct MenuBarWorkloadRow: View {
     private var statusColor: Color {
         switch workload {
         case .container(let c):
-            if c.status == .running { return AppTheme.runningGreen }
+            if c.status == .running || c.status == .paused { return AppTheme.runningGreen }
             if c.status == .creating || c.status == .starting { return .orange }
             return AppTheme.stoppedRed
         case .pod(let p):
-            if p.status == .running { return AppTheme.runningGreen }
+            if p.status == .running || p.status == .paused { return AppTheme.runningGreen }
             return AppTheme.stoppedRed
         }
     }

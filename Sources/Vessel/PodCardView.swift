@@ -10,7 +10,7 @@ struct PodCardView: View {
     
     @State private var isHovering = false
     
-    var isRunning: Bool { pod.status == .running }
+    var isRunning: Bool { pod.status == .running || pod.status == .paused }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {

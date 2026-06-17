@@ -9,7 +9,7 @@ struct PodDetailView: View {
         GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 24)
     ]
 
-    var isRunning: Bool { pod.status == .running }
+    var isRunning: Bool { pod.status == .running || pod.status == .paused }
     var isLoading: Bool { viewModel.loadingContainers.contains(pod.id) }
 
     var body: some View {

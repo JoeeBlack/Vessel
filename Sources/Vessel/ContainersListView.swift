@@ -256,16 +256,16 @@ struct ContainerCardView: View {
                         } else {
                             HStack(spacing: 6) {
                                 Circle()
-                                    .fill(container.status == .running ? AppTheme.runningGreen : AppTheme.stoppedRed)
+                                    .fill((container.status == .running || container.status == .paused) ? AppTheme.runningGreen : AppTheme.stoppedRed)
                                     .frame(width: 6, height: 6)
                                 
                                 Text(container.status.rawValue.uppercased())
                                     .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(container.status == .running ? AppTheme.runningGreen : AppTheme.stoppedRed)
+                                    .foregroundColor((container.status == .running || container.status == .paused) ? AppTheme.runningGreen : AppTheme.stoppedRed)
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(container.status == .running ? AppTheme.runningGreen.opacity(0.1) : AppTheme.stoppedRed.opacity(0.1))
+                            .background((container.status == .running || container.status == .paused) ? AppTheme.runningGreen.opacity(0.1) : AppTheme.stoppedRed.opacity(0.1))
                             .cornerRadius(12)
                         }
                     }

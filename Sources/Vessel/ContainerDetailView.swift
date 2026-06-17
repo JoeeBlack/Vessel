@@ -12,7 +12,7 @@ struct ContainerDetailView: View {
     let memData: [Double] = [0.8, 0.8, 0.85, 0.9, 0.95, 1.0, 1.1, 1.15, 1.2, 1.2, 1.2, 1.2]
     
     var body: some View {
-        let isRunning = container.status == .running
+        let isRunning = container.status == .running || container.status == .paused
         let isLoading = viewModel.loadingContainers.contains(container.id)
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
@@ -482,7 +482,7 @@ struct ContainerDetailView: View {
     }
     
     private func formattedUptime() -> String {
-        guard container.status == .running else { return container.uptime ?? "-" }
+        guard container.status == .running || container.status == .paused else { return container.uptime ?? "-" }
         guard let stats = viewModel.publishedStats[container.id], stats.uptimeSeconds > 0 else { return "Starting..." }
         let totalSeconds = Int(stats.uptimeSeconds)
         let h = totalSeconds / 3600

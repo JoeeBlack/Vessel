@@ -16,3 +16,6 @@
 ## 2026-06-17 - Custom SwiftUI Views in Menu Bar
 **Learning:** By default, `MenuBarExtra` renders its content as a standard macOS menu. To render complex custom SwiftUI layouts (like lists with buttons, graphs, and stats) from the menu bar icon, you must change the style.
 **Action:** Use the `.menuBarExtraStyle(.window)` modifier on the `MenuBarExtra` to present it as a popover window instead of a standard list menu.
+## 2026-06-17 - Smart Sleep Eco Mode (Low Power Integration)
+**Learning:** MacOS can notify applications when the system sleeps or wakes up (`NSWorkspace.screensDidSleepNotification` and `NSWorkspace.screensDidWakeNotification`), and can provide current battery state via `ProcessInfo.processInfo.isLowPowerModeEnabled`.
+**Action:** When building background processes or managers on MacOS, pause heavy workloads when the system screen turns off and the system is on low power mode, to heavily improve battery life, similar to browser tab freezing.
