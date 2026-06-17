@@ -20,9 +20,9 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 # Kopiowanie pliku binarnego
 cp .build/release/$APP_NAME "$APP_BUNDLE/Contents/MacOS/"
 
-echo "🔨 Budowanie narzędzia CLI (cctl)..."
-swift build -c release --product cctl -Xswiftc -whole-module-optimization -Xlinker -dead_strip
-cp .build/release/cctl "$APP_BUNDLE/Contents/Resources/cctl"
+echo "🔨 Budowanie narzędzia CLI (vcctl)..."
+swift build -c release --product vcctl -Xswiftc -whole-module-optimization -Xlinker -dead_strip
+cp .build/release/vcctl "$APP_BUNDLE/Contents/Resources/cctl"
 
 
 echo "🖼️ 3/6 Generowanie ikony aplikacji ($ICON_ICNS)..."
