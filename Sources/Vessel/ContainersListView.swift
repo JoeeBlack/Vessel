@@ -124,7 +124,6 @@ struct ContainersListView: View {
                                 onSelect(container.id)
                             }
                             .cursor(.pointingHand)
-                            .drawingGroup()
                             
                         case .pod(let pod):
                             PodCardView(
@@ -139,7 +138,6 @@ struct ContainersListView: View {
                                 onSelect(pod.id)
                             }
                             .cursor(.pointingHand)
-                            .drawingGroup()
                         }
                     }
                     
@@ -422,6 +420,16 @@ struct ContainerCardView: View {
         .padding(20)
         .background(
             ZStack {
+                // Liquid Glass Ambient Glow
+                Circle()
+                    .fill(AppTheme.runningGreen)
+                    .frame(width: 150, height: 150)
+                    .blur(radius: 50)
+                    .opacity(container.status == .running ? 0.3 : 0.0)
+                    .animation(.easeInOut(duration: 1.0), value: container.status)
+
+                Material.ultraThin
+
                 AppTheme.cardBackground
 
                 if container.domain != .generic {
@@ -444,7 +452,11 @@ struct ContainerCardView: View {
                 }
             }
         )
-        .cornerRadius(16)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(AppTheme.cardBorder, lineWidth: 1)
+        )
         .shadow(color: Color.black.opacity(0.03), radius: 10, x: 0, y: 4)
         .task(id: container.status) {
             if container.status == .running {
