@@ -31,6 +31,16 @@ struct ContainerDetailView: View {
                             Text(container.name)
                                 .font(.system(size: 32, weight: .bold, design: .serif))
                                 .foregroundColor(AppTheme.textPrimary)
+
+                            if container.domain != .generic {
+                                Text(container.domain.rawValue.uppercased())
+                                    .font(.system(size: 12, weight: .bold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(AppTheme.color(for: container.domain).opacity(0.1))
+                                    .foregroundColor(AppTheme.color(for: container.domain))
+                                    .cornerRadius(6)
+                            }
                         }
                         
                         HStack(spacing: 4) {
