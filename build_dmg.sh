@@ -21,11 +21,8 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 cp .build/release/$APP_NAME "$APP_BUNDLE/Contents/MacOS/"
 
 echo "🔨 Budowanie narzędzia CLI (cctl)..."
-pushd .build/checkouts/containerization > /dev/null
 swift build -c release --product cctl
-popd > /dev/null
-cp .build/checkouts/containerization/.build/release/cctl "$APP_BUNDLE/Contents/Resources/container"
-
+cp .build/release/cctl "$APP_BUNDLE/Contents/Resources/container"
 
 echo "🖼️ 3/6 Generowanie ikony aplikacji ($ICON_ICNS)..."
 mkdir -p "Assets"
@@ -34,22 +31,29 @@ if [ ! -f "$ICON_PNG" ]; then
     exit 1
 fi
 
-# Tworzenie pliku .icns za pomocą narzędzi sips i iconutil (standard macOS)
-ICONSET_DIR="Vessel.iconset"
-mkdir -p "$ICONSET_DIR"
-sips -s format png -z 16 16     "$ICON_PNG" --out "$ICONSET_DIR/icon_16x16.png" > /dev/null
-sips -s format png -z 32 32     "$ICON_PNG" --out "$ICONSET_DIR/icon_16x16@2x.png" > /dev/null
-sips -s format png -z 32 32     "$ICON_PNG" --out "$ICONSET_DIR/icon_32x32.png" > /dev/null
-sips -s format png -z 64 64     "$ICON_PNG" --out "$ICONSET_DIR/icon_32x32@2x.png" > /dev/null
-sips -s format png -z 128 128   "$ICON_PNG" --out "$ICONSET_DIR/icon_128x128.png" > /dev/null
-sips -s format png -z 256 256   "$ICON_PNG" --out "$ICONSET_DIR/icon_128x128@2x.png" > /dev/null
-sips -s format png -z 256 256   "$ICON_PNG" --out "$ICONSET_DIR/icon_256x256.png" > /dev/null
-sips -s format png -z 512 512   "$ICON_PNG" --out "$ICONSET_DIR/icon_256x256@2x.png" > /dev/null
-sips -s format png -z 512 512   "$ICON_PNG" --out "$ICONSET_DIR/icon_512x512.png" > /dev/null
-sips -s format png -z 1024 1024 "$ICON_PNG" --out "$ICONSET_DIR/icon_512x512@2x.png" > /dev/null
+GENERATED_ICNS="Assets/$ICON_ICNS"
+if [ "$ICON_PNG" -nt "$GENERATED_ICNS" ] || [ ! -f "$GENERATED_ICNS" ]; then
+    echo "⚙️ Tworzenie pliku .icns za pomocą narzędzi sips i iconutil (standard macOS)..."
+    ICONSET_DIR="Vessel.iconset"
+    mkdir -p "$ICONSET_DIR"
+    sips -s format png -z 16 16     "$ICON_PNG" --out "$ICONSET_DIR/icon_16x16.png" > /dev/null
+    sips -s format png -z 32 32     "$ICON_PNG" --out "$ICONSET_DIR/icon_16x16@2x.png" > /dev/null
+    sips -s format png -z 32 32     "$ICON_PNG" --out "$ICONSET_DIR/icon_32x32.png" > /dev/null
+    sips -s format png -z 64 64     "$ICON_PNG" --out "$ICONSET_DIR/icon_32x32@2x.png" > /dev/null
+    sips -s format png -z 128 128   "$ICON_PNG" --out "$ICONSET_DIR/icon_128x128.png" > /dev/null
+    sips -s format png -z 256 256   "$ICON_PNG" --out "$ICONSET_DIR/icon_128x128@2x.png" > /dev/null
+    sips -s format png -z 256 256   "$ICON_PNG" --out "$ICONSET_DIR/icon_256x256.png" > /dev/null
+    sips -s format png -z 512 512   "$ICON_PNG" --out "$ICONSET_DIR/icon_256x256@2x.png" > /dev/null
+    sips -s format png -z 512 512   "$ICON_PNG" --out "$ICONSET_DIR/icon_512x512.png" > /dev/null
+    sips -s format png -z 1024 1024 "$ICON_PNG" --out "$ICONSET_DIR/icon_512x512@2x.png" > /dev/null
 
-iconutil -c icns "$ICONSET_DIR" -o "$APP_BUNDLE/Contents/Resources/$ICON_ICNS"
-rm -rf "$ICONSET_DIR"
+    iconutil -c icns "$ICONSET_DIR" -o "$GENERATED_ICNS"
+    rm -rf "$ICONSET_DIR"
+else
+    echo "⏭️ Pomijam generowanie ikony (brak zmian w pliku źródłowym)."
+fi
+
+cp "$GENERATED_ICNS" "$APP_BUNDLE/Contents/Resources/$ICON_ICNS"
 
 echo "📝 4/6 Generowanie Info.plist..."
 cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
@@ -77,8 +81,10 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
-echo "🔐 5/6 Ad-Hoc Code Signing..."
-codesign --force --deep --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE"
+echo "🔐 5/6 Ad-Hoc Code Signing (inside-out)..."
+codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/Resources/container"
+codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE"
 
 echo "💿 6/6 Generowanie pięknego pliku $DMG_NAME..."
 rm -f "$DMG_NAME"
