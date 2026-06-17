@@ -659,7 +659,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         let (stream, continuation) = AsyncStream<StatsModel>.makeStream()
         
         let config = ContainerizationOCI.Process(
-            args: ["sh", "-c", "while true; do cat /proc/stat; echo '---MEM---'; cat /proc/meminfo; echo '---LOAD---'; cat /proc/loadavg; echo '---UPTIME---'; cat /proc/uptime; echo '---END---'; sleep 1; done"],
+            args: ["sh", "-c", "while true; do cat /proc/stat; echo '---MEM---'; cat /proc/meminfo; echo '---LOAD---'; cat /proc/loadavg; echo '---UPTIME---'; cat /proc/uptime; echo '---NET---'; cat /proc/net/dev; echo '---END---'; sleep 1; done"],
             terminal: false
         )
         

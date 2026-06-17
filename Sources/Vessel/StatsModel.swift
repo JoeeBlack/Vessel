@@ -10,6 +10,11 @@ public struct StatsModel: Codable, Equatable, Sendable {
     public var runningTasks: Int
     public var loadAverage: [Double] // [1m, 5m, 15m]
     public var uptimeSeconds: Double
+    public var timestamp: Date
+    public var netRxBytes: UInt64
+    public var netTxBytes: UInt64
+    public var netRxDelta: UInt64
+    public var netTxDelta: UInt64
     
     public init() {
         self.cpuUsages = []
@@ -21,11 +26,19 @@ public struct StatsModel: Codable, Equatable, Sendable {
         self.runningTasks = 0
         self.loadAverage = [0.0, 0.0, 0.0]
         self.uptimeSeconds = 0
+        self.timestamp = Date()
+        self.netRxBytes = 0
+        self.netTxBytes = 0
+        self.netRxDelta = 0
+        self.netTxDelta = 0
     }
 }
 
 public class StatsParser {
     private var prevCpuTicks: [String: (idle: UInt64, total: UInt64)] = [:]
+    private var prevNetRx: UInt64?
+    private var prevNetTx: UInt64?
+    private var prevTimestamp: Date?
     
     public init() {}
     
@@ -42,7 +55,11 @@ public class StatsParser {
         
         guard let uptimeRange = remainingAfterLoad.range(of: "---UPTIME---") else { return }
         let loadSection = remainingAfterLoad[..<uptimeRange.lowerBound]
-        let uptimeSection = remainingAfterLoad[uptimeRange.upperBound...]
+        let remainingAfterUptime = remainingAfterLoad[uptimeRange.upperBound...]
+
+        guard let netRange = remainingAfterUptime.range(of: "---NET---") else { return }
+        let uptimeSection = remainingAfterUptime[..<netRange.lowerBound]
+        let netSection = remainingAfterUptime[netRange.upperBound...]
         
         // Parse /proc/stat
         var cpuUsages: [Double] = []
@@ -133,6 +150,40 @@ public class StatsParser {
         let uptimeParts = uptimeSection.split(whereSeparator: \.isWhitespace)
         if let uptime = uptimeParts.first, let uptimeDouble = Double(uptime) {
             currentModel.uptimeSeconds = uptimeDouble
+            currentModel.timestamp = Date()
         }
+
+        // Parse /proc/net/dev
+        var rx: UInt64 = 0
+        var tx: UInt64 = 0
+        let netLines = netSection.split(whereSeparator: \.isNewline)
+        for line in netLines {
+            let parts = line.split(whereSeparator: \.isWhitespace)
+            // Example line: eth0: 1234 123 12 1 1 1 1 1 4321 321 32 3 3 3 3 3
+            if parts.count >= 10, let interfaceName = parts.first, interfaceName.contains(":") {
+                let name = String(interfaceName).replacingOccurrences(of: ":", with: "")
+                if name != "lo" {
+                    if let rxBytes = UInt64(parts[1]), let txBytes = UInt64(parts[9]) {
+                        rx += rxBytes
+                        tx += txBytes
+                    }
+                }
+            }
+        }
+        currentModel.netRxBytes = rx
+        currentModel.netTxBytes = tx
+
+        let now = Date()
+        if let prx = prevNetRx, let ptx = prevNetTx, let pt = prevTimestamp {
+            let timeDiff = now.timeIntervalSince(pt)
+            if timeDiff > 0 {
+                currentModel.netRxDelta = UInt64(Double(rx > prx ? rx - prx : 0) / timeDiff)
+                currentModel.netTxDelta = UInt64(Double(tx > ptx ? tx - ptx : 0) / timeDiff)
+            }
+        }
+
+        prevNetRx = rx
+        prevNetTx = tx
+        prevTimestamp = now
     }
 }
