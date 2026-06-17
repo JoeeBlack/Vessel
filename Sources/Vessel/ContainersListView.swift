@@ -8,6 +8,7 @@ enum SortOption: String, CaseIterable, Identifiable {
 }
 
 struct ContainersListView: View {
+    var animation: Namespace.ID
     let workloads: [VesselWorkload]
     let loadingContainers: Set<String>
     var viewModel: ContainerViewModel
@@ -115,6 +116,7 @@ struct ContainersListView: View {
                         switch workload {
                         case .container(let container):
                             ContainerCardView(
+                                animation: animation,
                                 container: container,
                                 isLoading: loadingContainers.contains(container.id),
                                 viewModel: viewModel,
@@ -185,6 +187,7 @@ struct ContainersListView: View {
 }
 
 struct ContainerCardView: View {
+    var animation: Namespace.ID
     let container: VesselContainer
     let isLoading: Bool
     var viewModel: ContainerViewModel
@@ -234,6 +237,7 @@ struct ContainerCardView: View {
                                 .background(AppTheme.color(for: container.domain).opacity(0.1))
                                 .foregroundColor(AppTheme.color(for: container.domain))
                                 .cornerRadius(4)
+                                .matchedGeometryEffect(id: "domain-\(container.id)", in: animation)
                         }
                         
                         Spacer()
@@ -253,6 +257,7 @@ struct ContainerCardView: View {
                             .padding(.vertical, 4)
                             .background(Color.orange.opacity(0.1))
                             .cornerRadius(12)
+                            .matchedGeometryEffect(id: "status-\(container.id)", in: animation)
                         } else {
                             HStack(spacing: 6) {
                                 Circle()
@@ -267,6 +272,7 @@ struct ContainerCardView: View {
                             .padding(.vertical, 4)
                             .background(container.status == .running ? AppTheme.runningGreen.opacity(0.1) : AppTheme.stoppedRed.opacity(0.1))
                             .cornerRadius(12)
+                            .matchedGeometryEffect(id: "status-\(container.id)", in: animation)
                         }
                     }
                     

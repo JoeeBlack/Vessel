@@ -25,6 +25,7 @@ struct ContentView: View {
         }
     }
 
+    @Namespace private var animation
     @Bindable var viewModel: ContainerViewModel
     @SwiftUI.State private var selectedContainerId: String?
     @SwiftUI.State private var selectedSidebarItem: SidebarItem? = .containers
@@ -60,7 +61,7 @@ struct ContentView: View {
                                 Text("Workloads")
                                     .foregroundColor(AppTheme.textSecondary)
                                     .onTapGesture {
-                                        selectedContainerId = nil
+                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedContainerId = nil }
                                     }
                                     .cursor(.pointingHand) // MacOS pointer
                                 Image(systemName: "chevron.right")
@@ -119,13 +120,13 @@ struct ContentView: View {
                         if let selectedId = selectedContainerId, let workload = viewModel.workload(for: selectedId) {
                             // Detail View
                             if case .container(let container) = workload {
-                                ContainerDetailView(container: container, viewModel: viewModel)
+                                ContainerDetailView(container: container, viewModel: viewModel, animation: animation)
                             } else if case .pod(let pod) = workload {
                                 PodDetailView(
                                     pod: pod,
                                     viewModel: viewModel,
                                     onSelectContainer: { id in
-                                        selectedContainerId = id
+                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedContainerId = id }
                                     }
                                 )
                             }
@@ -135,11 +136,12 @@ struct ContentView: View {
                                 $0.name.localizedCaseInsensitiveContains(searchText)
                             }
                             ContainersListView(
+                                animation: animation,
                                 workloads: filteredWorkloads,
                                 loadingContainers: viewModel.loadingContainers,
                                 viewModel: viewModel,
                                 onSelect: { id in
-                                    selectedContainerId = id
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedContainerId = id }
                                 },
                                 onStart: { id in
                                     Task { await viewModel.startContainer(id: id) }
@@ -248,7 +250,7 @@ struct ContentView: View {
                     ForEach(SidebarItem.allCases) { item in
                         Button(action: {
                             selectedSidebarItem = item
-                            selectedContainerId = nil // reset selection
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedContainerId = nil } // reset selection
                         }) {
                             HStack(spacing: 12) {
                                 Image(systemName: item.icon)

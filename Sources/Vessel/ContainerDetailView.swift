@@ -4,6 +4,7 @@ import Charts
 struct ContainerDetailView: View {
     let container: VesselContainer
     var viewModel: ContainerViewModel
+    var animation: Namespace.ID
     
     @State private var logSearchText = ""
 
@@ -40,6 +41,7 @@ struct ContainerDetailView: View {
                                     .background(AppTheme.color(for: container.domain).opacity(0.1))
                                     .foregroundColor(AppTheme.color(for: container.domain))
                                     .cornerRadius(6)
+                                    .matchedGeometryEffect(id: "domain-\(container.id)", in: animation)
                             }
                         }
                         
@@ -55,6 +57,39 @@ struct ContainerDetailView: View {
                     
                     Spacer()
                     
+                    // Status Badge
+                    if container.status == .creating || container.status == .starting {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .scaleEffect(0.5)
+                                .frame(width: 10, height: 10)
+
+                            Text(container.status.rawValue.uppercased())
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.orange)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(12)
+                        .matchedGeometryEffect(id: "status-\(container.id)", in: animation)
+                    } else {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(container.status == .running ? AppTheme.runningGreen : AppTheme.stoppedRed)
+                                .frame(width: 6, height: 6)
+
+                            Text(container.status.rawValue.uppercased())
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(container.status == .running ? AppTheme.runningGreen : AppTheme.stoppedRed)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(container.status == .running ? AppTheme.runningGreen.opacity(0.1) : AppTheme.stoppedRed.opacity(0.1))
+                        .cornerRadius(12)
+                        .matchedGeometryEffect(id: "status-\(container.id)", in: animation)
+                    }
+
                     // Actions
                     HStack(spacing: 16) {
                         Button(action: {
