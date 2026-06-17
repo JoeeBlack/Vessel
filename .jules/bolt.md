@@ -24,3 +24,7 @@
 ## 2024-10-24 - Canvas Line Charts for Live Metrics
 **Learning:** SwiftUI `Chart` elements (View Diffing) can drop frames when performing high-frequency updates (e.g. 100ms) for live monitoring, whereas `Canvas` API drawing directly via Metal avoids view diffing stutter entirely, exactly like Activity Monitor does on macOS.
 **Action:** Replace `Chart` in live data displays (like Container detail performance curves) with a lightweight, manual `Canvas` equivalent to retain high refresh rates without impacting the main thread render cycle.
+
+## 2026-06-17 - Scroll View Optimization
+**Learning:** Use `LazyVStack` instead of eager `VStack` or `LazyVGrid` to prevent off-screen `@State` initializations and unnecessary view rendering. Apply `.drawingGroup()` modifier to complex child view rows (those with backgrounds, shadows, multiple gradients, or complex nested loops) within lazy layouts to spłaszczyć je w pojedynczą bitmapę wyrenderowaną przez Metal na GPU, co eliminuje stuttering podczas przewijania.
+**Action:** Apply this pattern on complex lists in SwiftUI to maintain high frame rate while keeping interactive capabilities intact.

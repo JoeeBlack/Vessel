@@ -5,16 +5,12 @@ struct PodDetailView: View {
     var viewModel: ContainerViewModel
     var onSelectContainer: (String) -> Void
 
-    let columns = [
-        GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 24)
-    ]
-
     var isRunning: Bool { pod.status == .running }
     var isLoading: Bool { viewModel.loadingContainers.contains(pod.id) }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 32) {
+            LazyVStack(alignment: .leading, spacing: 32) {
 
                 // Header Area
                 HStack(alignment: .center) {
@@ -102,8 +98,7 @@ struct PodDetailView: View {
                         .foregroundColor(AppTheme.textPrimary)
                         .padding(.bottom, 8)
 
-                    LazyVGrid(columns: columns, spacing: 24) {
-                        ForEach(pod.containers) { container in
+                    ForEach(pod.containers) { container in
                             ContainerCardView(
                                 container: container,
                                 isLoading: viewModel.loadingContainers.contains(container.id),
@@ -116,8 +111,8 @@ struct PodDetailView: View {
                                 onSelectContainer(container.id)
                             }
                             .cursor(.pointingHand)
+                            .drawingGroup()
                         }
-                    }
                 }
 
             }

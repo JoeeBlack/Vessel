@@ -19,10 +19,6 @@ struct ContainersListView: View {
     var onNewContainer: () -> Void
     
     @AppStorage("containersListSortOption") private var sortOption: SortOption = .name
-
-    let columns = [
-        GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 24)
-    ]
     
     private var sortedWorkloads: [VesselWorkload] {
         workloads.sorted { w1, w2 in
@@ -70,7 +66,7 @@ struct ContainersListView: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            LazyVStack(alignment: .leading, spacing: 24) {
                 // Header Area
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -109,9 +105,8 @@ struct ContainersListView: View {
                 }
                 .padding(.bottom, 8)
                 
-                // Cards Grid
-                LazyVGrid(columns: columns, spacing: 24) {
-                    ForEach(sortedWorkloads) { workload in
+                // Cards List
+                ForEach(sortedWorkloads) { workload in
                         switch workload {
                         case .container(let container):
                             ContainerCardView(
@@ -127,6 +122,7 @@ struct ContainersListView: View {
                                 onSelect(container.id)
                             }
                             .cursor(.pointingHand)
+                            .drawingGroup()
                             
                         case .pod(let pod):
                             PodCardView(
@@ -141,6 +137,7 @@ struct ContainersListView: View {
                                 onSelect(pod.id)
                             }
                             .cursor(.pointingHand)
+                            .drawingGroup()
                         }
                     }
                     
@@ -177,7 +174,6 @@ struct ContainersListView: View {
                     }
                     .buttonStyle(.plain)
                     .cursor(.pointingHand)
-                }
             }
             .padding(32)
         }

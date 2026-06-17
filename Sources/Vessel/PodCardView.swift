@@ -175,5 +175,6 @@ struct PodCardView: View {
                 isHovering = hovering
             }
         }
+        .drawingGroup()
     }
 }
