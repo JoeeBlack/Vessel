@@ -5,6 +5,10 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
     func ps(reply: @escaping (String) -> Void) {
         reply("vesseld is running securely")
     }
+
+    func wakeContainer(containerId: String, reply: @escaping (String?, Error?) -> Void) {
+        reply("vesseld cannot wake container: not implemented", nil)
+    }
 }
 
 class VesselDaemonDelegate: NSObject, NSXPCListenerDelegate {
