@@ -19,7 +19,7 @@ let package = Package(
             name: "VesselXPC",
             path: "Sources/VesselXPC",
             swiftSettings: [
-                .unsafeFlags(["-whole-module-optimization"])
+                .unsafeFlags(["-whole-module-optimization"], .when(configuration: .release))
             ]
         ),
                 .executableTarget(
@@ -46,10 +46,10 @@ let package = Package(
             ],
             path: "Sources/Vessel",
             swiftSettings: [
-                .unsafeFlags(["-whole-module-optimization"])
+                .unsafeFlags(["-whole-module-optimization"], .when(configuration: .release))
             ],
             linkerSettings: [
-                .unsafeFlags(["-Xlinker", "-dead_strip"])
+                .unsafeFlags(["-Xlinker", "-dead_strip"], .when(configuration: .release))
             ]
         ),
         .executableTarget(
@@ -60,10 +60,10 @@ let package = Package(
             ],
             path: "Sources/cctl",
             swiftSettings: [
-                .unsafeFlags(["-whole-module-optimization"])
+                .unsafeFlags(["-whole-module-optimization"], .when(configuration: .release))
             ],
             linkerSettings: [
-                .unsafeFlags(["-Xlinker", "-dead_strip"])
+                .unsafeFlags(["-Xlinker", "-dead_strip"], .when(configuration: .release))
             ]
         ),
         .executableTarget(
