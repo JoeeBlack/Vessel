@@ -39,3 +39,5 @@ Carthage/Build/
 
 # Pozostałe pliki tymczasowe i logi
 *.log
+Vessel.app/
+*.dmg

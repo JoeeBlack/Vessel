@@ -37,6 +37,11 @@ public struct SimpleNATNetwork {
     }
 }
 
+final class SafeNetServiceBox: @unchecked Sendable {
+    let svc: NetService
+    init(_ svc: NetService) { self.svc = svc }
+}
+
 public final class ContainerDaemon: @unchecked Sendable {
     private struct ActiveContainer {
         let vessel: VesselContainer
@@ -652,8 +657,9 @@ public final class ContainerDaemon: @unchecked Sendable {
             let safeName = name.replacingOccurrences(of: " ", with: "-").lowercased()
             let svc = NetService(domain: "vessel.test.", type: "_http._tcp.", name: safeName, port: 80)
             netService = svc
-            await MainActor.run {
-                svc.publish()
+            let box = SafeNetServiceBox(svc)
+            DispatchQueue.main.async {
+                box.svc.publish()
             }
         }
 
@@ -887,8 +893,9 @@ public final class ContainerDaemon: @unchecked Sendable {
             let safeName = vessel.name.replacingOccurrences(of: " ", with: "-").lowercased()
             let svc = NetService(domain: "vessel.test.", type: "_http._tcp.", name: safeName, port: 80)
             netService = svc
-            await MainActor.run {
-                svc.publish()
+            let box = SafeNetServiceBox(svc)
+            DispatchQueue.main.async {
+                box.svc.publish()
             }
 
             let targetIP = linuxContainer.interfaces.first?.address.components(separatedBy: "/").first ?? "127.0.0.1"
@@ -999,7 +1006,7 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
                 }
                 let pod = activePod.pod
                 let updatedContainers = pod.containers.map {
-                    var container = $0
+                    let container = $0
                     let updated = VesselContainer(id: container.id, name: container.name, subtitle: container.subtitle, image: container.image, status: .paused, ipAddress: container.ipAddress, dnsName: container.dnsName, uptime: container.uptime, ports: container.ports, memoryUsage: container.memoryUsage, volume: container.volume, exitStatus: container.exitStatus, rosettaEnabled: container.rosettaEnabled, networkingEnabled: container.networkingEnabled, rootfsSize: container.rootfsSize, cpus: container.cpus, memoryGB: container.memoryGB, envVars: container.envVars, volumes: container.volumes, portForwards: container.portForwards, domain: container.domain)
                     return updated
                 }
@@ -1029,7 +1036,7 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
                 }
                 let pod = activePod.pod
                 let updatedContainers = pod.containers.map {
-                    var container = $0
+                    let container = $0
                     let updated = VesselContainer(id: container.id, name: container.name, subtitle: container.subtitle, image: container.image, status: .running, ipAddress: container.ipAddress, dnsName: container.dnsName, uptime: container.uptime, ports: container.ports, memoryUsage: container.memoryUsage, volume: container.volume, exitStatus: container.exitStatus, rosettaEnabled: container.rosettaEnabled, networkingEnabled: container.networkingEnabled, rootfsSize: container.rootfsSize, cpus: container.cpus, memoryGB: container.memoryGB, envVars: container.envVars, volumes: container.volumes, portForwards: container.portForwards, domain: container.domain)
                     return updated
                 }
