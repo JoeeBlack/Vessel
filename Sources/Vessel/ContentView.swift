@@ -254,9 +254,6 @@ struct ContentView: View {
                         .font(.system(size: 24, weight: .medium))
                         .fontWeight(.semibold)
                         .foregroundColor(AppTheme.accentBlue)
-                    Text("Infrastructure Engine")
-                        .font(.caption)
-                        .foregroundColor(AppTheme.textSecondary)
                 }
             }
             .padding(.horizontal, 20)
