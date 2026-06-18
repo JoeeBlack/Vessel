@@ -2,6 +2,7 @@ import SwiftUI
 import Containerization
 import ContainerizationOCI
 import UniformTypeIdentifiers
+import ServiceManagement
 
 struct ContentView: View {
     enum SidebarItem: String, CaseIterable, Identifiable {
@@ -408,6 +409,17 @@ struct ContentView: View {
                 
                 FileManager.default.createFile(atPath: dir.appendingPathComponent("installed").path, contents: Data())
                 
+                // Magic DNS setup via SMAppService
+                if #available(macOS 13.0, *) {
+                    do {
+                        let service = SMAppService.daemon(plistName: "com.vessel.helper.plist")
+                        try service.register()
+                        print("Successfully registered com.vessel.helper.plist with SMAppService")
+                    } catch {
+                        print("Failed to register SMAppService for Magic DNS: \(error)")
+                    }
+                }
+
                 await MainActor.run {
                     installProgress = 1.0
                     isFrameworkInstalled = true

@@ -24,6 +24,26 @@ echo "🔨 Budowanie narzędzia CLI (cctl)..."
 swift build -c release --product cctl
 cp .build/release/cctl "$APP_BUNDLE/Contents/Resources/cctl"
 
+echo "🔨 Budowanie demona VesselHelper..."
+swift build -c release --product VesselHelper
+mkdir -p "$APP_BUNDLE/Contents/Library/LaunchDaemons"
+cp .build/release/VesselHelper "$APP_BUNDLE/Contents/MacOS/VesselHelper"
+
+echo "📝 Generowanie com.vessel.helper.plist..."
+cat > "$APP_BUNDLE/Contents/Library/LaunchDaemons/com.vessel.helper.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.vessel.helper</string>
+    <key>BundleProgram</key>
+    <string>Contents/MacOS/VesselHelper</string>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+EOF
 
 echo "🖼️ 3/6 Generowanie ikony aplikacji ($ICON_ICNS)..."
 mkdir -p "Assets"
@@ -84,6 +104,7 @@ EOF
 
 echo "🔐 5/6 Ad-Hoc Code Signing (inside-out)..."
 codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/Resources/cctl"
+codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/MacOS/VesselHelper"
 codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE"
 

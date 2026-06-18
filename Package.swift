@@ -36,6 +36,10 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ],
             path: "Sources/cctl"
+        ),
+        .executableTarget(
+            name: "VesselHelper",
+            path: "Sources/VesselHelper"
         )
     ]
 )
