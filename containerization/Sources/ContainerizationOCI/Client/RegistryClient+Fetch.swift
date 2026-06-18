@@ -192,7 +192,10 @@ extension RegistryClient {
             try await writer.flush()
             try await handle.close()
         } catch {
-            try? await handle.close()
+            let safeHandle = handle
+            let _ = try? await Task {
+                try? await safeHandle.close()
+            }.value
             throw error
         }
         let computedDigest = hasher.finalize()

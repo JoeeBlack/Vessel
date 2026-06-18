@@ -1174,10 +1174,14 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
             
             _ = try await store.pull(reference: reference, progress: { events in
                 for event in events {
-                    if event.event == "add-items", let size = event.value as? UInt64 {
-                        await tracker.add(size: Int64(size))
-                    } else if event.event == "add-total-items", let size = event.value as? UInt64 {
-                        await tracker.addTotal(totalSize: Int64(size))
+                    if event.event == "add-size" {
+                        if let size = event.value as? Int64 { await tracker.add(size: size) }
+                        else if let size = event.value as? Int { await tracker.add(size: Int64(size)) }
+                        else if let size = event.value as? UInt64 { await tracker.add(size: Int64(size)) }
+                    } else if event.event == "add-total-size" {
+                        if let size = event.value as? Int64 { await tracker.addTotal(totalSize: size) }
+                        else if let size = event.value as? Int { await tracker.addTotal(totalSize: Int64(size)) }
+                        else if let size = event.value as? UInt64 { await tracker.addTotal(totalSize: Int64(size)) }
                     }
                 }
                 let pct = await tracker.getProgress()

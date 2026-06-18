@@ -83,13 +83,18 @@ struct ContainersListView: View {
 
                     Spacer()
                     
-                    Picker("Sort by", selection: $sortOption) {
-                        ForEach(SortOption.allCases) { option in
-                            Text(option.rawValue).tag(option)
+                    HStack {
+                        Text("Sort by")
+                            .fixedSize()
+                        Picker("", selection: $sortOption) {
+                            ForEach(SortOption.allCases) { option in
+                                Text(option.rawValue).tag(option)
+                            }
                         }
+                        .labelsHidden()
+                        .pickerStyle(SegmentedPickerStyle())
+                        .frame(width: 150)
                     }
-                    .pickerStyle(SegmentedPickerStyle())
-                    .frame(width: 150)
                     .padding(.trailing, 16)
                     
                     Button(action: onNewContainer) {

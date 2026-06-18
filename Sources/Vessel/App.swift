@@ -99,6 +99,7 @@ struct VesselApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(viewModel: viewModel)
+                .frame(minWidth: 1000, idealWidth: 1200, maxWidth: .infinity, minHeight: 700, idealHeight: 800, maxHeight: .infinity)
                 .environment(viewModel)
                 .onAppear {
 #if os(macOS)
