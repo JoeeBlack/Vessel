@@ -32,3 +32,7 @@
 ## 2024-06-18 - String Lowercasing Allocation Penalty
 **Learning:** In Swift, using `.lowercased()` for string comparisons (e.g., inside `.sorted { w1, w2 in w1.name.lowercased() < w2.name.lowercased() }`) or searching (`text.lowercased().contains(...)`) allocates entirely new `String` objects in memory. This causes massive memory overhead and stuttering in UI performance, especially in list rendering paths or high-frequency processing loops (like terminal text streams).
 **Action:** Use `.localizedCaseInsensitiveCompare` for sorting and `.localizedCaseInsensitiveContains` for substring matching. These methods perform in-place, allocation-free case-insensitive comparisons, significantly boosting performance.
+
+## 2026-06-18 - Replacing declarative charts with Canvas
+**Learning:** Declarative Charts (like Swift Charts) use complex view diffing logic that can cause CPU spikes and dropped frames when subjected to high-frequency state changes (e.g. 100ms real-time metric updates in monitoring dashboards).
+**Action:** When creating high-frequency live updating graphs in SwiftUI, bypass `Chart` views and use immediate-mode rendering via the `Canvas` API to push drawing operations directly to Metal, thereby freeing the main thread.
