@@ -569,7 +569,7 @@ public final class ContainerDaemon: @unchecked Sendable {
                 debugLog("Security Error: Attempt to mount restricted host path \(volume.host)")
                 throw NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "Mounting restricted host path \(volume.host) is not allowed."])
             }
-            container.mounts.append(Mount.share(source: volume.host, destination: volume.container))
+            container.mounts.append(Mount.share(source: volume.host, destination: volume.container, options: ["nosuid", "nodev", "noexec"]))
         }
         
         let stdoutWriter = LogWriter(prefix: "STDOUT", continuation: logContinuation)
@@ -778,7 +778,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev", "hidepid=2"]))
 
             for volume in vessel.volumes {
-                container.mounts.append(Mount.share(source: volume.host, destination: volume.container))
+                container.mounts.append(Mount.share(source: volume.host, destination: volume.container, options: ["nosuid", "nodev", "noexec"]))
             }
             
             let stdoutWriter = LogWriter(prefix: "STDOUT", continuation: logContinuation)

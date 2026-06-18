@@ -11,7 +11,8 @@ let package = Package(
         .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.0.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         .package(url: "https://github.com/apple/swift-system.git", exact: "1.6.5"),
-        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0")
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
+        .package(url: "https://github.com/apple/swift-configuration.git", exact: "1.0.1")
     ],
     targets: [
         .target(
@@ -39,7 +40,7 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "cctl",
+            name: "vcctl",
             dependencies: [
                 "VesselXPC",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
