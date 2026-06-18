@@ -22,6 +22,19 @@ let package = Package(
                 .unsafeFlags(["-whole-module-optimization"])
             ]
         ),
+                .executableTarget(
+            name: "vesseld",
+            dependencies: [
+                "VesselXPC"
+            ],
+            path: "Sources/vesseld",
+            swiftSettings: [
+                .unsafeFlags(["-whole-module-optimization"])
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-dead_strip"])
+            ]
+        ),
         .executableTarget(
             name: "Vessel",
             dependencies: [
@@ -35,6 +48,9 @@ let package = Package(
             swiftSettings: [
                 .unsafeFlags(["-whole-module-optimization"])
             ],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-dead_strip"])
+            ]
         ),
         .executableTarget(
             name: "vcctl",
@@ -45,6 +61,9 @@ let package = Package(
             path: "Sources/cctl",
             swiftSettings: [
                 .unsafeFlags(["-whole-module-optimization"])
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-dead_strip"])
             ]
         ),
         .executableTarget(

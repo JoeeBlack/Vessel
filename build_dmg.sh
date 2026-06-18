@@ -45,7 +45,39 @@ cat > "$APP_BUNDLE/Contents/Library/LaunchDaemons/com.vessel.helper.plist" <<EOF
 </plist>
 EOF
 
+
+echo "🔨 Budowanie demona (vesseld)..."
+swift build -c release --product vesseld -Xswiftc -whole-module-optimization -Xlinker -dead_strip
+
+XPCSERVICE_DIR="$APP_BUNDLE/Contents/XPCServices/com.vessel.daemon.xpc"
+mkdir -p "$XPCSERVICE_DIR/Contents/MacOS"
+
+cp .build/release/vesseld "$XPCSERVICE_DIR/Contents/MacOS/com.vessel.daemon"
+
+cat > "$XPCSERVICE_DIR/Contents/Info.plist" <<EOF2
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>com.vessel.daemon</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.vessel.daemon</string>
+    <key>CFBundleName</key>
+    <string>vesseld</string>
+    <key>CFBundlePackageType</key>
+    <string>XPC!</string>
+    <key>XPCService</key>
+    <dict>
+        <key>ServiceType</key>
+        <string>Application</string>
+    </dict>
+</dict>
+</plist>
+EOF2
+
 echo "🖼️ 3/6 Generowanie ikony aplikacji ($ICON_ICNS)..."
+
 mkdir -p "Assets"
 if [ ! -f "$ICON_PNG" ]; then
     echo "⚠️ Nie znaleziono $ICON_PNG. Proszę dodać ikonę."
@@ -105,6 +137,7 @@ EOF
 echo "🔐 5/6 Ad-Hoc Code Signing (inside-out)..."
 codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/Resources/cctl"
 codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/MacOS/VesselHelper"
+codesign --force --options runtime --sign - --entitlements vesseld.entitlements "$APP_BUNDLE/Contents/XPCServices/com.vessel.daemon.xpc"
 codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 codesign --force --options runtime --sign - --entitlements Vessel.entitlements "$APP_BUNDLE"
 
