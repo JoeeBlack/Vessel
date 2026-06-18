@@ -28,3 +28,7 @@
 ## 2026-06-17 - Scroll View Optimization
 **Learning:** Use `LazyVStack` instead of eager `VStack` or `LazyVGrid` to prevent off-screen `@State` initializations and unnecessary view rendering. Apply `.drawingGroup()` modifier to complex child view rows (those with backgrounds, shadows, multiple gradients, or complex nested loops) within lazy layouts to spłaszczyć je w pojedynczą bitmapę wyrenderowaną przez Metal na GPU, co eliminuje stuttering podczas przewijania.
 **Action:** Apply this pattern on complex lists in SwiftUI to maintain high frame rate while keeping interactive capabilities intact.
+
+## 2024-06-18 - String Lowercasing Allocation Penalty
+**Learning:** In Swift, using `.lowercased()` for string comparisons (e.g., inside `.sorted { w1, w2 in w1.name.lowercased() < w2.name.lowercased() }`) or searching (`text.lowercased().contains(...)`) allocates entirely new `String` objects in memory. This causes massive memory overhead and stuttering in UI performance, especially in list rendering paths or high-frequency processing loops (like terminal text streams).
+**Action:** Use `.localizedCaseInsensitiveCompare` for sorting and `.localizedCaseInsensitiveContains` for substring matching. These methods perform in-place, allocation-free case-insensitive comparisons, significantly boosting performance.

@@ -22,15 +22,16 @@ struct ContainersListView: View {
     @AppStorage("containersListSortOption") private var sortOption: SortOption = .name
     
     private var sortedWorkloads: [VesselWorkload] {
+        // ⚡ Bolt Optimization: Use localizedCaseInsensitiveCompare to avoid allocating intermediate lowercased strings during sorting
         workloads.sorted { w1, w2 in
             switch sortOption {
             case .name:
-                return w1.name.lowercased() < w2.name.lowercased()
+                return w1.name.localizedCaseInsensitiveCompare(w2.name) == .orderedAscending
             case .status:
                 let s1 = statusWeight(w1)
                 let s2 = statusWeight(w2)
                 if s1 == s2 {
-                    return w1.name.lowercased() < w2.name.lowercased()
+                    return w1.name.localizedCaseInsensitiveCompare(w2.name) == .orderedAscending
                 }
                 return s1 < s2
             }

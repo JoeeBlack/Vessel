@@ -54,8 +54,9 @@ struct VMTerminalView: NSViewRepresentable {
                     // For now, SwiftTerm does not have a simple built-in view-level filter that keeps history intact without complex buffer manipulation.
                     // We feed all data to the terminal. If a filter is applied, we just highlight it using search selection if the API supports it,
                     // or in this prototype, we only highlight incoming text but DO NOT drop non-matching text.
+                    // ⚡ Bolt Optimization: Use localizedCaseInsensitiveContains to avoid allocating intermediate lowercased strings
                     let outText: String
-                    if !self.filterText.isEmpty, text.lowercased().contains(self.filterText.lowercased()) {
+                    if !self.filterText.isEmpty, text.localizedCaseInsensitiveContains(self.filterText) {
                         outText = text.replacingOccurrences(of: self.filterText, with: "\u{1B}[43;30m\(self.filterText)\u{1B}[0m", options: .caseInsensitive)
                     } else {
                         outText = text
