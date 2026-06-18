@@ -8,8 +8,8 @@ struct MenuBarView: View {
             // Header
             HStack {
                 Text("Vessel Engine")
-                    .font(.headline)
-                    .fontWeight(.bold)
+                    .font(.system(size: 16, weight: .medium))
+                    .fontWeight(.semibold)
                     .foregroundColor(AppTheme.textPrimary)
                 Spacer()
                 Button(action: {

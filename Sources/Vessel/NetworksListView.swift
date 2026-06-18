@@ -14,7 +14,7 @@ struct NetworksListView: View {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Networks")
-                            .font(.system(size: 28, weight: .bold))
+                            .font(.system(size: 28, weight: .semibold))
                             .foregroundColor(AppTheme.textPrimary)
 
                         Text("Manage container networks and DNS domains.")
@@ -51,7 +51,7 @@ struct NetworksListView: View {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Domain Isolation Rules")
-                            .font(.system(size: 20, weight: .bold))
+                            .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(AppTheme.textPrimary)
 
                         Text("Configure network access between Qubes OS style domains.")
@@ -101,7 +101,7 @@ struct NetworksListView: View {
     private var addRuleSheet: some View {
         VStack(spacing: 24) {
             Text("Add Domain Rule")
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(AppTheme.textPrimary)
 
             VStack(alignment: .leading, spacing: 16) {
@@ -158,10 +158,10 @@ struct DomainRuleCardView: View {
             VStack(spacing: 4) {
                 Image(systemName: rule.isAllowed ? "arrow.right" : "xmark")
                     .foregroundColor(rule.isAllowed ? AppTheme.runningGreen : AppTheme.stoppedRed)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 14, weight: .semibold))
 
                 Text(rule.isAllowed ? "ALLOW" : "DENY")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(rule.isAllowed ? AppTheme.runningGreen : AppTheme.stoppedRed)
             }
             .padding(.horizontal, 16)
@@ -198,7 +198,7 @@ struct DomainRuleCardView: View {
                 .fill(AppTheme.color(for: domain))
                 .frame(width: 8, height: 8)
             Text(domain.rawValue.uppercased())
-                .font(.system(size: 12, weight: .bold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(AppTheme.textPrimary)
         }
         .padding(.horizontal, 12)
@@ -233,12 +233,12 @@ struct NetworkCardView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(name)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(AppTheme.textPrimary)
 
                     if isSystem {
                         Text("SYSTEM")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 10, weight: .semibold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(AppTheme.accentBlue.opacity(0.1))

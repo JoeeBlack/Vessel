@@ -13,7 +13,7 @@ struct ContainerConsoleView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Text("Console Logs")
-                        .font(.system(size: 16, weight: .bold, design: .serif))
+                        .font(.system(size: 16, weight: .semibold, design: .default))
                         .foregroundColor(AppTheme.textPrimary)
                     Spacer()
 
@@ -80,7 +80,7 @@ struct ContainerResourceChartsView: View {
 
         VStack(alignment: .leading, spacing: 16) {
             Text("Resource Utilization")
-                .font(.system(size: 16, weight: .bold, design: .serif))
+                .font(.system(size: 16, weight: .semibold, design: .default))
                 .foregroundColor(AppTheme.textPrimary)
 
             HStack(spacing: 24) {
@@ -259,7 +259,7 @@ struct ContainerNetworkCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Network")
-                .font(.system(size: 16, weight: .bold, design: .serif))
+                .font(.system(size: 16, weight: .semibold, design: .default))
                 .foregroundColor(AppTheme.textPrimary)
 
             VStack(spacing: 16) {
@@ -326,7 +326,7 @@ struct ContainerMetadataCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Metadata")
-                .font(.system(size: 16, weight: .bold, design: .serif))
+                .font(.system(size: 16, weight: .semibold, design: .default))
                 .foregroundColor(AppTheme.textPrimary)
 
             VStack(spacing: 16) {

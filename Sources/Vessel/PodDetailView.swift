@@ -22,7 +22,7 @@ struct PodDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .firstTextBaseline, spacing: 16) {
                             Text(pod.name)
-                                .font(.system(size: 32, weight: .bold, design: .serif))
+                                .font(.system(size: 32, weight: .semibold, design: .default))
                                 .foregroundColor(AppTheme.textPrimary)
                         }
 
@@ -62,7 +62,7 @@ struct PodDetailView: View {
                                         .foregroundColor(isRunning ? .red : .green)
                                 }
                             }
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: 13, weight: .semibold))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                             .contentShape(Rectangle())
@@ -82,7 +82,7 @@ struct PodDetailView: View {
                                 Text("Delete")
                                     .foregroundColor(.red)
                             }
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: 13, weight: .semibold))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                             .contentShape(Rectangle())
@@ -99,7 +99,7 @@ struct PodDetailView: View {
 
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Containers in Pod")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundColor(AppTheme.textPrimary)
                         .padding(.bottom, 8)
 

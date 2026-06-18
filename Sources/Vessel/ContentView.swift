@@ -72,7 +72,7 @@ struct ContentView: View {
                                     .foregroundColor(AppTheme.textSecondary)
                                 Text(workload.name)
                                     .foregroundColor(AppTheme.textPrimary)
-                                    .fontWeight(.bold)
+                                    .fontWeight(.semibold)
                             }
                             .font(.system(size: 14))
                             
@@ -178,7 +178,7 @@ struct ContentView: View {
                         VStack {
                             Spacer()
                             Text("\(selectedSidebarItem?.rawValue ?? "")")
-                                .font(.largeTitle)
+                                .font(.system(size: 32, weight: .semibold))
                                 .foregroundColor(AppTheme.textSecondary)
                             Spacer()
                         }
@@ -250,8 +250,8 @@ struct ContentView: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Vessel")
-                        .font(.title2)
-                        .fontWeight(.bold)
+                        .font(.system(size: 24, weight: .medium))
+                        .fontWeight(.semibold)
                         .foregroundColor(AppTheme.accentBlue)
                     Text("Infrastructure Engine")
                         .font(.caption)
@@ -279,7 +279,7 @@ struct ContentView: View {
                                     .frame(width: 24)
                                 
                                 Text(item.rawValue)
-                                    .font(.system(size: 14, weight: .bold))
+                                    .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
                                 
                                 Spacer()
@@ -313,8 +313,8 @@ struct ContentView: View {
                     .foregroundColor(AppTheme.accentBlue)
                 
                 Text("Container Framework Required")
-                    .font(.title)
-                    .fontWeight(.bold)
+                    .font(.system(size: 28, weight: .semibold))
+                    .fontWeight(.semibold)
                     .foregroundColor(AppTheme.textPrimary)
                 
                 Text("Vessel requires the native containerization environment to run workloads.")
