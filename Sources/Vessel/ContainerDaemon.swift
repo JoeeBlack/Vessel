@@ -43,6 +43,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         var linux: LinuxContainer?
         var logStream: AsyncStream<String>?
         var portForwarders: [PortForwarder] = []
+        var netService: NetService?
     }
     
     private struct ActivePod {
@@ -646,6 +647,16 @@ public final class ContainerDaemon: @unchecked Sendable {
             }
         }
 
+        var netService: NetService?
+        if networking {
+            let safeName = name.replacingOccurrences(of: " ", with: "-").lowercased()
+            let svc = NetService(domain: "vessel.test.", type: "_http._tcp.", name: safeName, port: 80)
+            netService = svc
+            await MainActor.run {
+                svc.publish()
+            }
+        }
+
         let vessel = VesselContainer(
             id: containerId,
             name: name,
@@ -665,7 +676,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             domain: domain
         )
         
-        activeContainers[containerId] = ActiveContainer(vessel: vessel, linux: container, logStream: stream, portForwarders: activeForwarders)
+        activeContainers[containerId] = ActiveContainer(vessel: vessel, linux: container, logStream: stream, portForwarders: activeForwarders, netService: netService)
         saveContainers()
         debugLog("Container added to activeContainers")
     }
@@ -871,7 +882,15 @@ public final class ContainerDaemon: @unchecked Sendable {
         linuxContainer.environment = []
 
         var activeForwarders: [PortForwarder] = []
+        var netService: NetService?
         if vessel.networkingEnabled {
+            let safeName = vessel.name.replacingOccurrences(of: " ", with: "-").lowercased()
+            let svc = NetService(domain: "vessel.test.", type: "_http._tcp.", name: safeName, port: 80)
+            netService = svc
+            await MainActor.run {
+                svc.publish()
+            }
+
             let targetIP = linuxContainer.interfaces.first?.address.components(separatedBy: "/").first ?? "127.0.0.1"
             for pf in vessel.portForwards {
                 guard pf.hostPort >= 1 && pf.hostPort <= 65535,
@@ -887,7 +906,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
 
         let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.networkingEnabled ? "127.0.0.1" : nil, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: nil, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, isBackground: vessel.isBackground, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
-        activeContainers[containerId] = ActiveContainer(vessel: updated, linux: linux, logStream: stream, portForwarders: activeForwarders)
+        activeContainers[containerId] = ActiveContainer(vessel: updated, linux: linux, logStream: stream, portForwarders: activeForwarders, netService: netService)
         saveContainers()
     }
     
@@ -1040,6 +1059,8 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
             pf.stop()
         }
 
+        active.netService?.stop()
+
         if force {
             // Some containers might be stubborn, stop them forcefully. The api currently provides stop()
             // In a real framework extension, a kill() signal would be sent. Here we call stop and release resources.
@@ -1068,6 +1089,7 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
             for pf in active.portForwarders {
                 pf.stop()
             }
+            active.netService?.stop()
             if let linux = active.linux {
                 try? await linux.stop()
             }

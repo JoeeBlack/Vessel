@@ -45,7 +45,11 @@ let package = Package(
             path: "Sources/cctl",
             swiftSettings: [
                 .unsafeFlags(["-whole-module-optimization"])
-            ],
+            ]
+        ),
+        .executableTarget(
+            name: "VesselHelper",
+            path: "Sources/VesselHelper"
         )
     ]
 )
