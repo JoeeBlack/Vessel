@@ -21,6 +21,19 @@ let package = Package(
                 .unsafeFlags(["-whole-module-optimization"])
             ]
         ),
+                .executableTarget(
+            name: "vesseld",
+            dependencies: [
+                "VesselXPC"
+            ],
+            path: "Sources/vesseld",
+            swiftSettings: [
+                .unsafeFlags(["-whole-module-optimization"])
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-dead_strip"])
+            ]
+        ),
         .executableTarget(
             name: "Vessel",
             dependencies: [
@@ -35,11 +48,11 @@ let package = Package(
                 .unsafeFlags(["-whole-module-optimization"])
             ],
             linkerSettings: [
-                .unsafeFlags(["-dead_strip"])
+                .unsafeFlags(["-Xlinker", "-dead_strip"])
             ]
         ),
         .executableTarget(
-            name: "cctl",
+            name: "VesselCLI",
             dependencies: [
                 "VesselXPC",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
@@ -49,7 +62,7 @@ let package = Package(
                 .unsafeFlags(["-whole-module-optimization"])
             ],
             linkerSettings: [
-                .unsafeFlags(["-dead_strip"])
+                .unsafeFlags(["-Xlinker", "-dead_strip"])
             ]
         )
     ]
