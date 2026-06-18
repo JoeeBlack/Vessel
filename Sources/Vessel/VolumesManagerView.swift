@@ -79,6 +79,9 @@ struct VolumeExplorerView: View {
                 Button(action: goUp) {
                     Image(systemName: "arrow.up")
                 }
+                .buttonStyle(.plain)
+                .help("Go up one directory")
+                .accessibilityLabel("Go up one directory")
                 .disabled(currentPath.path == URL(fileURLWithPath: volume.host).resolvingSymlinksInPath().path)
 
                 Text(currentPath.path)
@@ -88,6 +91,9 @@ struct VolumeExplorerView: View {
                 Button(action: loadFiles) {
                     Image(systemName: "arrow.clockwise")
                 }
+                .buttonStyle(.plain)
+                .help("Refresh files")
+                .accessibilityLabel("Refresh files")
             }
             .padding()
             .background(AppTheme.cardBackground)
