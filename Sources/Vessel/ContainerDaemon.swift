@@ -210,7 +210,7 @@ public final class ContainerDaemon: @unchecked Sendable {
 
     public func getContainerIP(containerId: String) -> String? {
         if let active = activeContainers[containerId], let linux = active.linux {
-            return linux.interfaces?.first?.address.components(separatedBy: "/").first
+            return linux.interfaces.first?.address.components(separatedBy: "/").first
         }
         return nil
     }
@@ -464,7 +464,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             try BookmarkManager.shared.resolveAndAccess(path: volume.host)
         }
 
-        func debugLog(_ msg: String) {
+        @Sendable func debugLog(_ msg: String) {
             let logFile = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/daemon.log")
             let text = "[\(Date())] \(msg)\n"
             if let data = text.data(using: .utf8) {
@@ -630,7 +630,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         if networking {
             // we use the IP configured for the container
             // Currently our simplistic SimpleNATNetwork creates 192.168.64.X
-            let targetIP = container.interfaces?.first?.address.components(separatedBy: "/").first ?? "127.0.0.1"
+            let targetIP = container.interfaces.first?.address.components(separatedBy: "/").first ?? "127.0.0.1"
 
             for pf in portForwards {
                 guard pf.hostPort >= 1 && pf.hostPort <= 65535,
@@ -671,7 +671,7 @@ public final class ContainerDaemon: @unchecked Sendable {
     }
     
     public func start(containerId: String) async throws {
-        func debugLog(_ msg: String) {
+        @Sendable func debugLog(_ msg: String) {
             let logFile = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/daemon.log")
             let text = "[\(Date())] \(msg)\n"
             if let data = text.data(using: .utf8) {
@@ -872,7 +872,7 @@ public final class ContainerDaemon: @unchecked Sendable {
 
         var activeForwarders: [PortForwarder] = []
         if vessel.networkingEnabled {
-            let targetIP = linuxContainer.interfaces?.first?.address.components(separatedBy: "/").first ?? "127.0.0.1"
+            let targetIP = linuxContainer.interfaces.first?.address.components(separatedBy: "/").first ?? "127.0.0.1"
             for pf in vessel.portForwards {
                 guard pf.hostPort >= 1 && pf.hostPort <= 65535,
                       pf.containerPort >= 1 && pf.containerPort <= 65535 else { continue }

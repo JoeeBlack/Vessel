@@ -604,7 +604,7 @@ extension LinuxContainer {
         let startedState = try state.startedState("pause/resume")
         try await startedState.vm.resume()
     }
-\n    /// Stop the container from executing.
+/// Stop the container from executing.
     public func stop() async throws {
         let startedState = try state.stopping()
 

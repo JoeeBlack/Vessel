@@ -1,10 +1,11 @@
 import Foundation
 import VesselXPC
 
-class VesselXPCServer: NSObject, VesselXPCProtocol {
+class VesselXPCServer: NSObject, VesselXPCProtocol, @unchecked Sendable {
     private let daemon = ContainerDaemon()
 
     func ps(reply: @escaping (String) -> Void) {
+        nonisolated(unsafe) let safeReply = reply
         Task {
             do {
                 let containers = try await daemon.fetchActiveContainers()
@@ -32,24 +33,25 @@ class VesselXPCServer: NSObject, VesselXPCProtocol {
                     output += "\(idPadded)\(imagePadded)\(commandPadded)\(createdPadded)\(statusPadded)\(portsPadded)\(namePadded)\n"
                 }
 
-                reply(output)
+                safeReply(output)
             } catch {
-                reply("Error: \(error.localizedDescription)")
+                safeReply("Error: \(error.localizedDescription)")
             }
         }
     }
 
     func wakeContainer(containerId: String, reply: @escaping (String?, Error?) -> Void) {
+        nonisolated(unsafe) let safeReply = reply
         Task {
             do {
                 try await daemon.start(containerId: containerId)
                 if let ip = daemon.getContainerIP(containerId: containerId) {
-                    reply(ip, nil)
+                    safeReply(ip, nil)
                 } else {
-                    reply(nil, NSError(domain: "VesselXPC", code: 404, userInfo: [NSLocalizedDescriptionKey: "Failed to get IP for started container"]))
+                    safeReply(nil, NSError(domain: "VesselXPC", code: 404, userInfo: [NSLocalizedDescriptionKey: "Failed to get IP for started container"]))
                 }
             } catch {
-                reply(nil, error)
+                safeReply(nil, error)
             }
         }
     }

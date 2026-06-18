@@ -1,7 +1,7 @@
 import Foundation
 import AppKit
 
-public class BookmarkManager {
+public class BookmarkManager: @unchecked Sendable {
     public static let shared = BookmarkManager()
 
     private let userDefaultsKey = "VesselSecurityScopedBookmarks"
@@ -66,9 +66,7 @@ public class BookmarkManager {
     }
 
     private func requestAccessOnMainThread(for url: URL) throws {
-        var userError: Error?
-
-        let runPanel = {
+        let panelAction: @MainActor () -> Error? = {
             let panel = NSOpenPanel()
             panel.message = "Vessel needs access to the folder '\(url.path)' to mount it into the container."
             panel.prompt = "Grant Access"
@@ -86,25 +84,31 @@ public class BookmarkManager {
                             self.activeUrlsLock.lock()
                             self.activeUrls.append(selectedUrl)
                             self.activeUrlsLock.unlock()
+                            return nil
                         } else {
-                            userError = NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "Failed to access security-scoped resource."])
+                            return NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "Failed to access security-scoped resource."])
                         }
                     } catch {
-                        userError = error
+                        return error
                     }
                 } else {
-                    userError = NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "User selected a different directory. Access denied."])
+                    return NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "User selected a different directory. Access denied."])
                 }
             } else {
-                userError = NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "User denied access to the requested path."])
+                return NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "User denied access to the requested path."])
             }
         }
 
+        var userError: Error?
         if Thread.isMainThread {
-            runPanel()
+            userError = MainActor.assumeIsolated {
+                panelAction()
+            }
         } else {
-            DispatchQueue.main.sync {
-                runPanel()
+            userError = DispatchQueue.main.sync {
+                MainActor.assumeIsolated {
+                    panelAction()
+                }
             }
         }
 

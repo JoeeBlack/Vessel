@@ -8,6 +8,7 @@ struct StatusIndicator: View {
         switch status {
         case .running: return AppTheme.runningGreen
         case .stopped: return AppTheme.stoppedRed
+        case .paused: return .yellow
         case .creating, .starting: return .orange
         case .error: return .red
         case .unknown: return .gray
@@ -28,7 +29,7 @@ struct StatusIndicator: View {
             .frame(width: size, height: size)
             .keyframeAnimator(
                 initialValue: AnimationValues(),
-                repeating: status == .running
+                repeating: status == .running || status == .paused
             ) { content, value in
                 content
                     .scaleEffect(value.scale)

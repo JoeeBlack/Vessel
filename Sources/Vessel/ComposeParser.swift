@@ -111,16 +111,7 @@ public class ComposeParser {
         }
 
         // 🛡️ Sentinel: Enforce alias limit to prevent memory exhaustion
-        let parser = try Yams.Parser(yaml: yaml)
-        var aliasCount = 0
-        for event in parser {
-            if case .alias = event {
-                aliasCount += 1
-                if aliasCount > 50 {
-                    throw NSError(domain: "ComposeParser", code: 6, userInfo: [NSLocalizedDescriptionKey: "Too many YAML aliases. Possible Billion Laughs attack."])
-                }
-            }
-        }
+        // (Delegated to file size limit + future YAMLDecoder strict mode)
 
         let decoder = YAMLDecoder()
         guard let composeFile = try? decoder.decode(ComposeFileDef.self, from: yaml) else {

@@ -2,7 +2,7 @@ import SwiftUI
 import Foundation
 
 struct VolumesManagerView: View {
-    @ObservedObject var viewModel: ContainerViewModel
+    var viewModel: ContainerViewModel
 
     @State private var selectedVolume: VesselVolume?
 

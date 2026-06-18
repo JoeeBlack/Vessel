@@ -68,7 +68,7 @@ public struct LogLine: Identifiable, Hashable, Sendable {
 }
 
 @Observable
-public class ContainerViewModel {
+public class ContainerViewModel: @unchecked Sendable {
     public var workloads: [VesselWorkload] = []
     public var domainRules: [DomainRule] = []
     
@@ -125,12 +125,12 @@ public class ContainerViewModel {
 
     public func addDomainRule(source: VesselDomain, target: VesselDomain, isAllowed: Bool) {
         daemon.addDomainRule(DomainRule(source: source, target: target, isAllowed: isAllowed))
-        Task { await fetchContainers() }
+        Task { @MainActor in await self.fetchContainers() }
     }
 
     public func removeDomainRule(id: UUID) {
         daemon.removeDomainRule(id: id)
-        Task { await fetchContainers() }
+        Task { @MainActor in await self.fetchContainers() }
     }
 
     public func workload(for id: String) -> VesselWorkload? {
@@ -300,7 +300,8 @@ public class ContainerViewModel {
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                 DispatchQueue(label: "com.vessel.daemon.logs", qos: qos).async {
                     let innerTask = Task {
-                        let stream = self.daemon.streamLogs(for: id)
+                        let d = self.daemon
+                        let stream = d.streamLogs(for: id)
                         for await line in stream {
                             if Task.isCancelled { break }
                             await MainActor.run {
@@ -391,7 +392,8 @@ public class ContainerViewModel {
                         DispatchQueue(label: "com.vessel.daemon.stats", qos: qos).async {
                             let innerTask = Task {
                                 do {
-                                    let stream = try await self.daemon.startStatsStream(containerId: id)
+                                    let d = self.daemon
+                                    let stream = try await d.startStatsStream(containerId: id)
                                     for await model in stream {
                                         if Task.isCancelled { break }
                                         await MainActor.run {

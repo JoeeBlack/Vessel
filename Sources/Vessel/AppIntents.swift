@@ -13,13 +13,13 @@ public struct ContainerEntity: AppEntity {
         self.name = name
     }
 
-    public static var typeDisplayRepresentation: TypeDisplayRepresentation = "Container"
+    public static let typeDisplayRepresentation: TypeDisplayRepresentation = "Container"
 
     public var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(name)")
     }
 
-    public static var defaultQuery = ContainerEntityQuery()
+    public static let defaultQuery = ContainerEntityQuery()
 }
 
 // MARK: - EntityQuery
@@ -45,8 +45,8 @@ public struct ContainerEntityQuery: EntityQuery {
 
 // MARK: - Intents
 public struct StartContainerIntent: AppIntent {
-    public static var title: LocalizedStringResource = "Start Container"
-    public static var description = IntentDescription("Starts a specific Vessel container.")
+    public static let title: LocalizedStringResource = "Start Container"
+    public static let description = IntentDescription("Starts a specific Vessel container.")
 
     @Parameter(title: "Container")
     public var container: ContainerEntity
@@ -61,8 +61,8 @@ public struct StartContainerIntent: AppIntent {
 }
 
 public struct StopContainerIntent: AppIntent {
-    public static var title: LocalizedStringResource = "Stop Container"
-    public static var description = IntentDescription("Stops a specific Vessel container.")
+    public static let title: LocalizedStringResource = "Stop Container"
+    public static let description = IntentDescription("Stops a specific Vessel container.")
 
     @Parameter(title: "Container")
     public var container: ContainerEntity

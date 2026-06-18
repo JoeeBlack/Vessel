@@ -10,7 +10,7 @@ ICON_PNG="Assets/icon.png"
 ICON_ICNS="Vessel.icns"
 
 echo "🔨 1/6 Budowanie wersji Release..."
-swift build -c release -Xswiftc -whole-module-optimization -Xlinker -dead_strip
+swift build -c release -Xswiftc -strict-concurrency=minimal -Xswiftc -whole-module-optimization -Xlinker -dead_strip
 
 echo "📦 2/6 Tworzenie struktury $APP_BUNDLE..."
 rm -rf "$APP_BUNDLE"
@@ -21,7 +21,7 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 cp .build/release/$APP_NAME "$APP_BUNDLE/Contents/MacOS/"
 
 echo "🔨 Budowanie narzędzia CLI (vcctl)..."
-swift build -c release --product vcctl -Xswiftc -whole-module-optimization -Xlinker -dead_strip
+swift build -c release --product vcctl -Xswiftc -strict-concurrency=minimal -Xswiftc -whole-module-optimization -Xlinker -dead_strip
 cp .build/release/vcctl "$APP_BUNDLE/Contents/Resources/cctl"
 
 

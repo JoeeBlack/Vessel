@@ -14,7 +14,15 @@ struct PodCardView: View {
     
     var isRunning: Bool { pod.status == .running || pod.status == .paused }
     
+    
+    var statusColor: Color {
+        if isRunning || pod.status == .paused { return .green }
+        if pod.status == .creating || pod.status == .starting { return .orange }
+        return .red
+    }
+    
     var body: some View {
+
         VStack(alignment: .leading, spacing: 16) {
             // Header
             HStack(alignment: .top) {
@@ -48,13 +56,13 @@ struct PodCardView: View {
                     StatusIndicator(status: pod.status, size: 8)
                     Text(pod.status.rawValue.capitalized)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(isRunning ? Color.green : (pod.status == .creating ? Color.orange : Color.red))
+                        .foregroundColor(statusColor)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(isRunning ? Color.green.opacity(0.1) : (pod.status == .creating ? Color.orange.opacity(0.1) : Color.red.opacity(0.1)))
+                        .fill(statusColor.opacity(0.1))
                 )
             }
             
@@ -165,7 +173,7 @@ struct PodCardView: View {
                     .opacity(isRunning ? 0.3 : 0.0)
                     .animation(.easeInOut(duration: 1.0), value: isRunning)
 
-                Material.ultraThin
+                Rectangle().fill(Material.ultraThin)
                 AppTheme.cardBackground
                 // Domain Color Strip for Pod
                 if pod.domain != .generic {

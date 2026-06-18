@@ -308,18 +308,7 @@ struct ContainerCardView: View {
                         Spacer()
                         HStack(spacing: 4) {
                             ForEach(forwards, id: \.hostPort) { pf in
-                                if let url = URL(string: "http://localhost:\(pf.hostPort)") {
-                                    Link("\(pf.hostPort):\(pf.containerPort)", destination: url)
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .foregroundColor(AppTheme.accentBlue)
-                                        .underline()
-                                        .help("Open in Browser")
-                                        .accessibilityLabel("Open localhost:\(pf.hostPort) in Browser")
-                                } else {
-                                    Text("\(pf.hostPort):\(pf.containerPort)")
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .foregroundColor(AppTheme.accentBlue)
-                                }
+                                PortForwardLinkView(pf: pf)
                             }
                         }
                     }
@@ -425,9 +414,9 @@ struct ContainerCardView: View {
                     .opacity(container.status == .running ? 0.3 : 0.0)
                     .animation(.easeInOut(duration: 1.0), value: container.status)
 
-                Material.ultraThin
+                Rectangle().fill(Material.ultraThin)
 
-                AppTheme.cardBackground
+                Rectangle().fill(AppTheme.cardBackground)
 
                 if container.domain != .generic {
                     RoundedRectangle(cornerRadius: 16)
@@ -469,6 +458,27 @@ struct ContainerCardView: View {
                 .foregroundColor(AppTheme.textSecondary)
             Spacer()
             Text(value)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(AppTheme.accentBlue)
+        }
+    }
+}
+
+
+struct PortForwardLinkView: View {
+    let pf: VesselPortForward
+    var body: some View {
+        let urlString = "http://localhost:\(pf.hostPort)"
+        let linkText = "\(pf.hostPort):\(pf.containerPort)"
+        if let url = URL(string: urlString) {
+            Link(linkText, destination: url)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(AppTheme.accentBlue)
+                .underline()
+                .help("Open in Browser")
+                .accessibilityLabel(Text("Open localhost:\(pf.hostPort) in Browser"))
+        } else {
+            Text(linkText)
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundColor(AppTheme.accentBlue)
         }
