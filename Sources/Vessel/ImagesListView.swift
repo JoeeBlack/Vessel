@@ -18,7 +18,7 @@ struct ImagesListView: View {
             // Header Area
             VStack(alignment: .leading, spacing: 8) {
                 Text("OCI Images")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(AppTheme.textPrimary)
                 
                 Text("Manage container images from remote registries. Search Docker Hub directly.")
@@ -226,7 +226,7 @@ struct ImageCardView: View {
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(image.repository)
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(AppTheme.textPrimary)
                 
                 Text(image.id)
@@ -296,11 +296,11 @@ struct PullingImageCardView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(query)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(AppTheme.textPrimary)
                     Spacer()
                     Text("\(Int(progress * 100))%")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(AppTheme.accentBlue)
                 }
                 

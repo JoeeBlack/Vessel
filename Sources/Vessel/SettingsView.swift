@@ -8,7 +8,7 @@ struct SettingsView: View {
             // Header Area
             VStack(alignment: .leading, spacing: 8) {
                 Text("Settings")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(AppTheme.textPrimary)
                 
                 Text("Manage containerization framework.")

@@ -39,7 +39,7 @@ struct PodCardView: View {
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(pod.name)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(AppTheme.textPrimary)
                         .lineLimit(1)
                     

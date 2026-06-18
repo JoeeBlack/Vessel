@@ -38,7 +38,7 @@ struct VolumesManagerView: View {
                         .font(.system(size: 64))
                         .foregroundColor(AppTheme.textSecondary)
                     Text("Select a volume to explore")
-                        .font(.title2)
+                        .font(.system(size: 24, weight: .medium))
                         .foregroundColor(AppTheme.textSecondary)
                 }
             }
@@ -131,7 +131,7 @@ struct VolumeExplorerView: View {
                     if let selectedFile = selectedFile, ((try? selectedFile.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == false) {
                         HStack {
                             Text(selectedFile.lastPathComponent)
-                                .font(.headline)
+                                .font(.system(size: 16, weight: .medium))
                             Spacer()
                             Button(action: saveFile) {
                                 Text("Save")

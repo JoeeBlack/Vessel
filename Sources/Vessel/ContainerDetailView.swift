@@ -31,12 +31,12 @@ struct ContainerDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .firstTextBaseline, spacing: 16) {
                             Text(container.name)
-                                .font(.system(size: 32, weight: .bold, design: .serif))
+                                .font(.system(size: 32, weight: .semibold, design: .default))
                                 .foregroundColor(AppTheme.textPrimary)
 
                             if container.domain != .generic {
                                 Text(container.domain.rawValue.uppercased())
-                                    .font(.system(size: 12, weight: .bold))
+                                    .font(.system(size: 12, weight: .semibold))
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
                                     .background(AppTheme.color(for: container.domain).opacity(0.1))
@@ -66,7 +66,7 @@ struct ContainerDetailView: View {
                                 .frame(width: 10, height: 10)
 
                             Text(container.status.rawValue.uppercased())
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(.orange)
                         }
                         .padding(.horizontal, 8)
@@ -81,7 +81,7 @@ struct ContainerDetailView: View {
                                 .frame(width: 6, height: 6)
 
                             Text(container.status.rawValue.uppercased())
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(container.status == .running ? AppTheme.runningGreen : AppTheme.stoppedRed)
                         }
                         .padding(.horizontal, 8)
@@ -116,7 +116,7 @@ struct ContainerDetailView: View {
                                         .foregroundColor(isRunning ? .red : .green)
                                 }
                             }
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: 13, weight: .semibold))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                             .contentShape(Rectangle())
@@ -139,7 +139,7 @@ struct ContainerDetailView: View {
                                 Text("Restart")
                                     .foregroundColor(AppTheme.textPrimary)
                             }
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: 13, weight: .semibold))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                             .contentShape(Rectangle())
@@ -159,7 +159,7 @@ struct ContainerDetailView: View {
                                 Image(systemName: "terminal.fill")
                                 Text("Exec")
                             }
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.white)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)

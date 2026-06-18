@@ -17,7 +17,7 @@ struct MarketplaceView: View {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Marketplace")
-                            .font(.system(size: 28, weight: .bold))
+                            .font(.system(size: 28, weight: .semibold))
                             .foregroundColor(AppTheme.textPrimary)
                         
                         Text("Discover and deploy verified container images.")
@@ -185,7 +185,7 @@ struct MarketplaceView: View {
                         .fill(AppTheme.runningGreen)
                         .frame(width: 6, height: 6)
                     Text("VERIFIED")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(AppTheme.runningGreen)
                 }
                 .padding(.horizontal, 8)
@@ -197,7 +197,7 @@ struct MarketplaceView: View {
             // Title & Subtitle
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(AppTheme.textPrimary)
                 Text(subtitle)
                     .font(.system(size: 12))

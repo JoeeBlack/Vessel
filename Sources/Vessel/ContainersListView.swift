@@ -73,7 +73,7 @@ struct ContainersListView: View {
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Containers")
-                            .font(.system(size: 28, weight: .bold))
+                            .font(.system(size: 28, weight: .semibold))
                             .foregroundColor(AppTheme.textPrimary)
 
                         Text("\(runningCount) Running • \(workloads.count) Total")
@@ -161,7 +161,7 @@ struct ContainersListView: View {
                             
                             VStack(spacing: 4) {
                                 Text("Deploy Container")
-                                    .font(.system(size: 16, weight: .bold))
+                                    .font(.system(size: 16, weight: .semibold))
                                     .foregroundColor(AppTheme.accentBlue)
                                 Text("From image or compose file")
                                     .font(.system(size: 12))
@@ -228,12 +228,12 @@ struct ContainerCardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(container.name)
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(AppTheme.textPrimary)
 
                         if container.domain != .generic {
                             Text(container.domain.rawValue.uppercased())
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.system(size: 10, weight: .semibold))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(AppTheme.color(for: container.domain).opacity(0.1))
@@ -252,7 +252,7 @@ struct ContainerCardView: View {
                                     .frame(width: 10, height: 10)
                                 
                                 Text(container.status.rawValue.uppercased())
-                                    .font(.system(size: 10, weight: .bold))
+                                    .font(.system(size: 10, weight: .semibold))
                                     .foregroundColor(.orange)
                             }
                             .padding(.horizontal, 8)
@@ -264,7 +264,7 @@ struct ContainerCardView: View {
                             HStack(spacing: 6) {
                                 StatusIndicator(status: container.status, size: 6)
                                 Text(container.status.rawValue.uppercased())
-                                    .font(.system(size: 10, weight: .bold))
+                                    .font(.system(size: 10, weight: .semibold))
                                     .foregroundColor((container.status == .running || container.status == .paused) ? AppTheme.runningGreen : AppTheme.stoppedRed)
                             }
                             .padding(.horizontal, 8)
@@ -294,7 +294,7 @@ struct ContainerCardView: View {
                                 Text(String(format: "%.0f MB", memMb))
                             }
                         }
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(AppTheme.textSecondary)
                         .padding(.top, 2)
                     }

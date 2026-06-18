@@ -48,7 +48,7 @@ struct CreateContainerView: View {
             // Header
             HStack {
                 Text("Deploy New Workload")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(AppTheme.textPrimary)
                 Spacer()
                 Button(action: { dismiss() }) {
@@ -177,7 +177,7 @@ struct CreateContainerView: View {
                                     .foregroundColor(AppTheme.textPrimary)
                                 Spacer()
                                 Text("\(Int(rootfsSize)) GB")
-                                    .font(.system(size: 12, weight: .bold))
+                                    .font(.system(size: 12, weight: .semibold))
                                     .foregroundColor(AppTheme.accentBlue)
                             }
                             
@@ -193,7 +193,7 @@ struct CreateContainerView: View {
                                     .foregroundColor(AppTheme.textPrimary)
                                 Spacer()
                                 Text("\(Int(cpuCount))")
-                                    .font(.system(size: 12, weight: .bold))
+                                    .font(.system(size: 12, weight: .semibold))
                                     .foregroundColor(AppTheme.accentBlue)
                             }
                             
@@ -209,7 +209,7 @@ struct CreateContainerView: View {
                                     .foregroundColor(AppTheme.textPrimary)
                                 Spacer()
                                 Text("\(Int(memoryGB)) GB")
-                                    .font(.system(size: 12, weight: .bold))
+                                    .font(.system(size: 12, weight: .semibold))
                                     .foregroundColor(AppTheme.accentBlue)
                             }
                             
