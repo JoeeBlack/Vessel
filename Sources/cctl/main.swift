@@ -24,7 +24,7 @@ struct PS: ParsableCommand {
 
         let proxy = connection.remoteObjectProxyWithErrorHandler { error in
             print("Failed to connect to Vessel daemon: \(error.localizedDescription)")
-            exit(1)
+            Foundation.exit(1)
         } as! VesselXPCProtocol
 
         let semaphore = DispatchSemaphore(value: 0)
@@ -36,7 +36,7 @@ struct PS: ParsableCommand {
         let result = semaphore.wait(timeout: .now() + 5.0)
         if result == .timedOut {
             print("Error: Timed out waiting for response from Vessel daemon.")
-            exit(1)
+            Foundation.exit(1)
         }
     }
 }
@@ -107,7 +107,7 @@ struct EnableWake: ParsableCommand {
             print("Successfully enabled socket activation on port \(port) for container \(containerId).")
         } else {
             print("Failed to load launchd plist.")
-            exit(1)
+            Foundation.exit(1)
         }
     }
 }
@@ -165,7 +165,7 @@ struct WakeProxy: ParsableCommand {
 
         let proxy = connection.remoteObjectProxyWithErrorHandler { error in
             FileHandle.standardError.write("Failed to connect to Vessel daemon: \(error.localizedDescription)\n".data(using: .utf8)!)
-            exit(1)
+            Foundation.exit(1)
         } as! VesselXPCProtocol
 
         let semaphore = DispatchSemaphore(value: 0)
@@ -181,17 +181,17 @@ struct WakeProxy: ParsableCommand {
         let result = semaphore.wait(timeout: .now() + 10.0) // Give it time to wake up
         if result == .timedOut {
             FileHandle.standardError.write("Timed out waiting for container to wake.\n".data(using: .utf8)!)
-            exit(1)
+            Foundation.exit(1)
         }
 
         if let error = wakeError {
             FileHandle.standardError.write("Error waking container: \(error.localizedDescription)\n".data(using: .utf8)!)
-            exit(1)
+            Foundation.exit(1)
         }
 
         guard let ip = targetIP else {
             FileHandle.standardError.write("Failed to get container IP.\n".data(using: .utf8)!)
-            exit(1)
+            Foundation.exit(1)
         }
 
         // Now proxy between stdin/stdout and the container's IP/port
@@ -208,7 +208,7 @@ struct WakeProxy: ParsableCommand {
         let sockfd = socket(AF_INET, SOCK_STREAM, 0)
         if sockfd < 0 {
             FileHandle.standardError.write("Failed to create socket.\n".data(using: .utf8)!)
-            exit(1)
+            Foundation.exit(1)
         }
 
         let connectResult = withUnsafePointer(to: &sockaddr_in_addr) {
@@ -219,7 +219,7 @@ struct WakeProxy: ParsableCommand {
 
         if connectResult < 0 {
             FileHandle.standardError.write("Failed to connect to container.\n".data(using: .utf8)!)
-            exit(1)
+            Foundation.exit(1)
         }
 
         let group = DispatchGroup()
@@ -233,9 +233,8 @@ struct WakeProxy: ParsableCommand {
         group.enter()
         stdinChannel.read(offset: 0, length: Int.max, queue: globalQueue) { done, data, error in
             if let data = data, !data.isEmpty {
-                data.withUnsafeBytes { ptr in
-                    _ = send(sockfd, ptr.baseAddress, ptr.count, 0)
-                }
+                let bytes = [UInt8](data)
+                _ = send(sockfd, bytes, bytes.count, 0)
             }
             if done || error != 0 {
                 stdinChannel.close()
@@ -252,9 +251,8 @@ struct WakeProxy: ParsableCommand {
         group.enter()
         socketChannel.read(offset: 0, length: Int.max, queue: globalQueue) { done, data, error in
             if let data = data, !data.isEmpty {
-                data.withUnsafeBytes { ptr in
-                    _ = write(STDOUT_FILENO, ptr.baseAddress, ptr.count)
-                }
+                let bytes = [UInt8](data)
+                _ = write(STDOUT_FILENO, bytes, bytes.count)
             }
             if done || error != 0 {
                 socketChannel.close()

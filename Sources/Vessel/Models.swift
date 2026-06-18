@@ -10,7 +10,7 @@ public enum VesselStatus: String, CaseIterable, Codable, Sendable {
     case unknown = "unknown"
 }
 
-public enum VesselDomain: String, CaseIterable, Codable, Hashable {
+public enum VesselDomain: String, CaseIterable, Codable, Hashable, Sendable {
     case generic = "generic"
     case personal = "personal"
     case work = "work"

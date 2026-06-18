@@ -34,12 +34,9 @@ let package = Package(
             swiftSettings: [
                 .unsafeFlags(["-whole-module-optimization"])
             ],
-            linkerSettings: [
-                .unsafeFlags(["-dead_strip"])
-            ]
         ),
         .executableTarget(
-            name: "cctl",
+            name: "vcctl",
             dependencies: [
                 "VesselXPC",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
@@ -48,9 +45,6 @@ let package = Package(
             swiftSettings: [
                 .unsafeFlags(["-whole-module-optimization"])
             ],
-            linkerSettings: [
-                .unsafeFlags(["-dead_strip"])
-            ]
         )
     ]
 )

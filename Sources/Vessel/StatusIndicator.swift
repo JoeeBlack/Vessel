@@ -21,6 +21,8 @@ struct StatusIndicator: View {
     }
 
     var body: some View {
+        let resolvedColor = self.color
+
         Circle()
             .fill(color)
             .frame(width: size, height: size)
@@ -33,7 +35,7 @@ struct StatusIndicator: View {
                     .opacity(value.opacity)
                     .overlay(
                         Circle()
-                            .fill(color.opacity(value.colorOpacity))
+                            .fill(resolvedColor.opacity(value.colorOpacity))
                             .scaleEffect(value.scale * 1.5)
                     )
             } keyframes: { _ in

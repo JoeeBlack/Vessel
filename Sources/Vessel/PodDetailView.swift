@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct PodDetailView: View {
+    @Namespace private var animation
     let pod: VesselPod
     var viewModel: ContainerViewModel
     var onSelectContainer: (String) -> Void
@@ -100,6 +101,7 @@ struct PodDetailView: View {
 
                     ForEach(pod.containers) { container in
                             ContainerCardView(
+                                animation: animation,
                                 container: container,
                                 isLoading: viewModel.loadingContainers.contains(container.id),
                                 viewModel: viewModel,

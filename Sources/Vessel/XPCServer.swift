@@ -7,7 +7,7 @@ class VesselXPCServer: NSObject, VesselXPCProtocol {
     func ps(reply: @escaping (String) -> Void) {
         Task {
             do {
-                let containers = try await daemon.fetchContainers()
+                let containers = try await daemon.fetchActiveContainers()
 
                 // Format output like `docker ps`
                 var output = "CONTAINER ID   IMAGE          COMMAND   CREATED        STATUS          PORTS     NAMES\n"
