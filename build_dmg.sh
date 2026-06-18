@@ -21,8 +21,8 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 cp .build/release/$APP_NAME "$APP_BUNDLE/Contents/MacOS/"
 
 echo "🔨 Budowanie narzędzia CLI (cctl)..."
-swift build -c release --product cctl -Xswiftc -whole-module-optimization -Xlinker -dead_strip
-cp .build/release/cctl "$APP_BUNDLE/Contents/Resources/cctl"
+swift build -c release --product vessel-cctl -Xswiftc -whole-module-optimization -Xlinker -dead_strip
+cp .build/release/vessel-cctl "$APP_BUNDLE/Contents/Resources/cctl"
 
 
 echo "🖼️ 3/6 Generowanie ikony aplikacji ($ICON_ICNS)..."

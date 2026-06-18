@@ -39,7 +39,7 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "cctl",
+            name: "vessel-cctl",
             dependencies: [
                 "VesselXPC",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")

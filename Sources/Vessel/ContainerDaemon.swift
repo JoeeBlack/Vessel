@@ -297,7 +297,9 @@ public final class ContainerDaemon: @unchecked Sendable {
         }()
         
         let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
-        let testKernel = Kernel(path: kernelPath, platform: .linuxArm)
+        var testKernelCommandLine = Kernel.CommandLine()
+        testKernelCommandLine.kernelArgs.append("ro")
+        let testKernel = Kernel(path: kernelPath, platform: .linuxArm, commandline: testKernelCommandLine)
         
         let podId = UUID().uuidString
         var containers: [VesselContainer] = []
@@ -358,6 +360,8 @@ public final class ContainerDaemon: @unchecked Sendable {
             // Mounting /proc with hidepid=2 prevents users within the container from seeing processes
             // owned by other users, mitigating information disclosure.
             container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev", "hidepid=2"]))
+            container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/tmp", options: []))
+            container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/var/run", options: []))
 
             // Note: we can't manually add VZLinuxRosettaDirectoryShare to container.mounts as a string.
             // The apple/containerization package already automatically mounts VZLinuxRosettaDirectoryShare
@@ -482,7 +486,9 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
         
         let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
-        let kernel = Kernel(path: kernelPath, platform: .linuxArm)
+        var kernelCommandLine = Kernel.CommandLine()
+        kernelCommandLine.kernelArgs.append("ro")
+        let kernel = Kernel(path: kernelPath, platform: .linuxArm, commandline: kernelCommandLine)
         
         let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
         let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
@@ -560,6 +566,8 @@ public final class ContainerDaemon: @unchecked Sendable {
         // Mounting /proc with hidepid=2 prevents users within the container from seeing processes
         // owned by other users, mitigating information disclosure.
         container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev", "hidepid=2"]))
+        container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/tmp", options: []))
+        container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/var/run", options: []))
 
         for volume in volumes {
             // Check for restricted host paths to prevent container escapes
@@ -699,7 +707,9 @@ public final class ContainerDaemon: @unchecked Sendable {
         if linux == nil {
             let network: SimpleNATNetwork? = vessel.networkingEnabled ? SimpleNATNetwork() : nil
             let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
-            let kernel = Kernel(path: kernelPath, platform: .linuxArm)
+            var kernelCommandLine = Kernel.CommandLine()
+            kernelCommandLine.kernelArgs.append("ro")
+            let kernel = Kernel(path: kernelPath, platform: .linuxArm, commandline: kernelCommandLine)
                      let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
             let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
             let contentStore = try LocalContentStore(path: contentPath)
@@ -776,6 +786,8 @@ public final class ContainerDaemon: @unchecked Sendable {
             // Mounting /proc with hidepid=2 prevents users within the container from seeing processes
             // owned by other users, mitigating information disclosure.
             container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev", "hidepid=2"]))
+            container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/tmp", options: []))
+            container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/var/run", options: []))
 
             for volume in vessel.volumes {
                 container.mounts.append(Mount.share(source: volume.host, destination: volume.container))
