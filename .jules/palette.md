@@ -22,3 +22,7 @@
 ## 2026-06-17 - Smart Sleep Eco Mode (Low Power Integration)
 **Learning:** MacOS can notify applications when the system sleeps or wakes up (`NSWorkspace.screensDidSleepNotification` and `NSWorkspace.screensDidWakeNotification`), and can provide current battery state via `ProcessInfo.processInfo.isLowPowerModeEnabled`.
 **Action:** When building background processes or managers on MacOS, pause heavy workloads when the system screen turns off and the system is on low power mode, to heavily improve battery life, similar to browser tab freezing.
+
+## 2026-06-18 - Missing Accessibility Labels on Navigation Icons
+**Learning:** Icon-only navigation buttons like `arrow.up` or `arrow.clockwise` in lists or explorer views (e.g., `VolumesManagerView.swift`) must have descriptive labels, otherwise their functionality is opaque to screen readers.
+**Action:** Always add `.help("description")` and `.accessibilityLabel("description")` to custom interaction buttons using SF Symbols inside views like file browsers or volume managers.
