@@ -949,6 +949,67 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         continuation.finish()
     }
 }    
+
+    public func pauseAll() async throws {
+        // Pause all running linux containers
+        for (id, active) in activeContainers {
+            if let linux = active.linux, active.vessel.status == .running {
+                try? await linux.pause()
+
+                let vessel = active.vessel
+                let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .paused, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
+                activeContainers[id] = ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders)
+            }
+        }
+        for (id, activePod) in activePods {
+            if activePod.pod.status == .running {
+                for (_, linux) in activePod.linuxContainers {
+                    try? await linux.pause()
+                }
+                let pod = activePod.pod
+                let updatedContainers = pod.containers.map {
+                    var container = $0
+                    let updated = VesselContainer(id: container.id, name: container.name, subtitle: container.subtitle, image: container.image, status: .paused, ipAddress: container.ipAddress, dnsName: container.dnsName, uptime: container.uptime, ports: container.ports, memoryUsage: container.memoryUsage, volume: container.volume, exitStatus: container.exitStatus, rosettaEnabled: container.rosettaEnabled, networkingEnabled: container.networkingEnabled, rootfsSize: container.rootfsSize, cpus: container.cpus, memoryGB: container.memoryGB, envVars: container.envVars, volumes: container.volumes, portForwards: container.portForwards, domain: container.domain)
+                    return updated
+                }
+                let updatedPod = VesselPod(id: pod.id, name: pod.name, status: .paused, containers: updatedContainers, cpus: pod.cpus, memoryGB: pod.memoryGB)
+                activePods[id] = ActivePod(pod: updatedPod, linuxContainers: activePod.linuxContainers)
+            }
+        }
+        saveContainers()
+        savePods()
+    }
+
+    public func resumeAll() async throws {
+        // Resume all paused linux containers
+        for (id, active) in activeContainers {
+            if let linux = active.linux, active.vessel.status == .paused {
+                try? await linux.resume()
+
+                let vessel = active.vessel
+                let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
+                activeContainers[id] = ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders)
+            }
+        }
+        for (id, activePod) in activePods {
+            if activePod.pod.status == .paused {
+                for (_, linux) in activePod.linuxContainers {
+                    try? await linux.resume()
+                }
+                let pod = activePod.pod
+                let updatedContainers = pod.containers.map {
+                    var container = $0
+                    let updated = VesselContainer(id: container.id, name: container.name, subtitle: container.subtitle, image: container.image, status: .running, ipAddress: container.ipAddress, dnsName: container.dnsName, uptime: container.uptime, ports: container.ports, memoryUsage: container.memoryUsage, volume: container.volume, exitStatus: container.exitStatus, rosettaEnabled: container.rosettaEnabled, networkingEnabled: container.networkingEnabled, rootfsSize: container.rootfsSize, cpus: container.cpus, memoryGB: container.memoryGB, envVars: container.envVars, volumes: container.volumes, portForwards: container.portForwards, domain: container.domain)
+                    return updated
+                }
+                let updatedPod = VesselPod(id: pod.id, name: pod.name, status: .running, containers: updatedContainers, cpus: pod.cpus, memoryGB: pod.memoryGB)
+                activePods[id] = ActivePod(pod: updatedPod, linuxContainers: activePod.linuxContainers)
+            }
+        }
+        saveContainers()
+        savePods()
+    }
+
     public func stop(containerId: String, force: Bool = false) async throws {
         if let activePod = activePods[containerId] {
             for (_, container) in activePod.linuxContainers {

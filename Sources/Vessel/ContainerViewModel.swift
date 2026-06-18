@@ -233,6 +233,26 @@ public class ContainerViewModel {
         }
     }
     
+
+    @MainActor
+    public func pauseAllWorkloads() async {
+        do {
+            try await daemon.pauseAll()
+            await fetchInitialWorkloads()
+        } catch {
+            print("Error pausing workloads: \(error)")
+        }
+    }
+
+    @MainActor
+    public func resumeAllWorkloads() async {
+        do {
+            try await daemon.resumeAll()
+            await fetchInitialWorkloads()
+        } catch {
+            print("Error resuming workloads: \(error)")
+        }
+    }
     @MainActor
     public func stopContainer(id: String, force: Bool = false) async {
         loadingContainers.insert(id)

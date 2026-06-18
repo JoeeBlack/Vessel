@@ -259,11 +259,11 @@ struct ContainerCardView: View {
                                 StatusIndicator(status: container.status, size: 6)
                                 Text(container.status.rawValue.uppercased())
                                     .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(container.status == .running ? AppTheme.runningGreen : AppTheme.stoppedRed)
+                                    .foregroundColor((container.status == .running || container.status == .paused) ? AppTheme.runningGreen : AppTheme.stoppedRed)
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(container.status == .running ? AppTheme.runningGreen.opacity(0.1) : AppTheme.stoppedRed.opacity(0.1))
+                            .background((container.status == .running || container.status == .paused) ? AppTheme.runningGreen.opacity(0.1) : AppTheme.stoppedRed.opacity(0.1))
                             .cornerRadius(12)
                             .matchedGeometryEffect(id: "status-\(container.id)", in: animation)
                         }

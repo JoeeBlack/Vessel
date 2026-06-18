@@ -12,7 +12,7 @@ struct PodCardView: View {
     @AppStorage("enableHaptics") private var enableHaptics: Bool = true
     @State private var hapticTrigger: Int = 0
     
-    var isRunning: Bool { pod.status == .running }
+    var isRunning: Bool { pod.status == .running || pod.status == .paused }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {

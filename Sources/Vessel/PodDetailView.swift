@@ -6,7 +6,11 @@ struct PodDetailView: View {
     var viewModel: ContainerViewModel
     var onSelectContainer: (String) -> Void
 
-    var isRunning: Bool { pod.status == .running }
+    let columns = [
+        GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 24)
+    ]
+
+    var isRunning: Bool { pod.status == .running || pod.status == .paused }
     var isLoading: Bool { viewModel.loadingContainers.contains(pod.id) }
 
     var body: some View {

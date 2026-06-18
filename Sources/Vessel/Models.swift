@@ -3,6 +3,7 @@ import Foundation
 // MARK: - Enums
 public enum VesselStatus: String, CaseIterable, Codable, Sendable {
     case running = "running"
+    case paused = "paused"
     case stopped = "stopped"
     case error = "error"
     case creating = "creating"

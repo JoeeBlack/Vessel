@@ -19,3 +19,6 @@
 ## $(date +%Y-%m-%d) - Add Sensory Feedback (Haptics)
 **Learning:** For a faster perceived app response time on macOS trackpads without CPU overhead, use `.sensoryFeedback(trigger:)` from macOS 14+. It can be toggled by coupling the condition inside the modifier logic with an `@AppStorage` variable.
 **Action:** When adding micro-interactions to start/stop or errors in Apple platform apps, implement `.sensoryFeedback(.impact)` or `.sensoryFeedback(.error)` and ensure they are user-configurable.
+## 2026-06-17 - Smart Sleep Eco Mode (Low Power Integration)
+**Learning:** MacOS can notify applications when the system sleeps or wakes up (`NSWorkspace.screensDidSleepNotification` and `NSWorkspace.screensDidWakeNotification`), and can provide current battery state via `ProcessInfo.processInfo.isLowPowerModeEnabled`.
+**Action:** When building background processes or managers on MacOS, pause heavy workloads when the system screen turns off and the system is on low power mode, to heavily improve battery life, similar to browser tab freezing.

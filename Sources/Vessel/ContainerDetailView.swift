@@ -14,7 +14,7 @@ struct ContainerDetailView: View {
     let memData: [Double] = [0.8, 0.8, 0.85, 0.9, 0.95, 1.0, 1.1, 1.15, 1.2, 1.2, 1.2, 1.2]
     
     var body: some View {
-        let isRunning = container.status == .running
+        let isRunning = container.status == .running || container.status == .paused
         let isLoading = viewModel.loadingContainers.contains(container.id)
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
@@ -283,5 +283,35 @@ struct CanvasLineChart: View {
                 context.stroke(path, with: .color(color), lineWidth: 2)
             }
         }
+        .padding(24)
+        .background(Material.ultraThin)
+        .background(AppTheme.cardBackground)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 15, x: 0, y: 8)
+    }
+    
+    private func detailRow(label: String, value: String, isMonospaced: Bool = true) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundColor(AppTheme.textSecondary)
+            Spacer()
+            Text(value)
+                .font(isMonospaced ? .system(size: 13, design: .monospaced) : .system(size: 13))
+                .foregroundColor(AppTheme.textPrimary)
+        }
+    }
+    
+    private func formattedUptime() -> String {
+        guard container.status == .running || container.status == .paused else { return container.uptime ?? "-" }
+        guard let stats = viewModel.publishedStats[container.id], stats.uptimeSeconds > 0 else { return "Starting..." }
+        let totalSeconds = Int(stats.uptimeSeconds)
+        let h = totalSeconds / 3600
+        let m = (totalSeconds % 3600) / 60
+        let s = totalSeconds % 60
+        
+        if h > 0 { return "\(h)h \(m)m" }
+        if m > 0 { return "\(m)m \(s)s" }
+        return "\(s)s"
     }
 }
