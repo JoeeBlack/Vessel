@@ -115,6 +115,10 @@ struct ContentView: View {
                     .padding(.horizontal, 24)
                     .padding(.vertical, 16)
                     .background(Color.clear)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        NSApplication.shared.keyWindow?.performZoom(nil)
+                    }
                     
                     Divider()
                         .background(AppTheme.cardBorder)

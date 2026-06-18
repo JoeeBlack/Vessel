@@ -107,7 +107,7 @@ public class ContainerViewModel: @unchecked Sendable {
             self.workloads = try await daemon.fetchActiveWorkloads()
             self.domainRules = daemon.fetchDomainRules()
         } catch {
-            print("Błąd podczas pobierania workloadów: \(error.localizedDescription)")
+            print("Error fetching workloads: \(error.localizedDescription)")
             self.workloads = []
             self.domainRules = daemon.fetchDomainRules()
         }
@@ -119,7 +119,7 @@ public class ContainerViewModel: @unchecked Sendable {
             self.workloads = try await daemon.fetchActiveWorkloads()
             self.domainRules = daemon.fetchDomainRules()
         } catch {
-            print("Błąd: \(error.localizedDescription)")
+            print("Error: \(error.localizedDescription)")
         }
     }
 
@@ -160,7 +160,7 @@ public class ContainerViewModel: @unchecked Sendable {
             await fetchInitialWorkloads()
             sendBuildCompletedNotification(containerName: name)
         } catch {
-            print("Błąd podczas tworzenia kontenera: \(error.localizedDescription)")
+            print("Error creating container: \(error.localizedDescription)")
             self.errorMessage = "Failed to create container: \(error.localizedDescription)"
             self.workloads.removeAll(where: { 
                 if case .container(let c) = $0 { return c.id == newId }
@@ -174,12 +174,6 @@ public class ContainerViewModel: @unchecked Sendable {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         if settings.authorizationStatus == .notDetermined {
-            let alert = NSAlert()
-            alert.messageText = "Wymagane uprawnienia"
-            alert.informativeText = "Prosimy o zgodę na powiadomienia, aby powiadamiać o błędach budowania oraz awariach kontenerów."
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-
             do {
                 try await center.requestAuthorization(options: [.alert, .sound, .badge])
             } catch {
@@ -191,7 +185,7 @@ public class ContainerViewModel: @unchecked Sendable {
     private func sendBuildCompletedNotification(containerName: String) {
         let content = UNMutableNotificationContent()
         content.title = "Build Completed"
-        content.body = "Zakończono tworzenie kontenera \(containerName)."
+        content.body = "Container \(containerName) has been successfully created."
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
     }
@@ -199,7 +193,7 @@ public class ContainerViewModel: @unchecked Sendable {
     public func notifyCrash(containerId: String, containerName: String) {
         let content = UNMutableNotificationContent()
         content.title = "Container Crash / OOM"
-        content.body = "Krytyczny błąd: kontener \(containerName) uległ awarii."
+        content.body = "Critical error: container \(containerName) has crashed."
         content.categoryIdentifier = "CRASH_CATEGORY"
         content.userInfo = ["containerId": containerId]
 
@@ -218,7 +212,7 @@ public class ContainerViewModel: @unchecked Sendable {
             Task { await streamLogs(for: id) }
             Task { await subscribeToStats(for: id) }
         } catch {
-            print("Błąd podczas uruchamiania kontenera: \(error.localizedDescription)")
+            print("Error starting container: \(error.localizedDescription)")
         }
     }
     
@@ -228,7 +222,7 @@ public class ContainerViewModel: @unchecked Sendable {
             try await daemon.startPod(yamlPath: url)
             await fetchInitialWorkloads()
         } catch {
-            print("Błąd podczas uruchamiania poda: \(error.localizedDescription)")
+            print("Error starting pod: \(error.localizedDescription)")
             self.errorMessage = "Failed to start pod: \(error.localizedDescription)"
         }
     }
@@ -262,7 +256,7 @@ public class ContainerViewModel: @unchecked Sendable {
             try await daemon.stop(containerId: id, force: force)
             await fetchInitialWorkloads()
         } catch {
-            print("Błąd podczas zatrzymywania kontenera: \(error.localizedDescription)")
+            print("Error stopping container: \(error.localizedDescription)")
         }
     }
     
@@ -275,7 +269,7 @@ public class ContainerViewModel: @unchecked Sendable {
             try await daemon.delete(containerId: id)
             await fetchInitialWorkloads()
         } catch {
-            print("Błąd podczas usuwania kontenera: \(error.localizedDescription)")
+            print("Error deleting container: \(error.localizedDescription)")
             self.errorMessage = "Failed to delete container: \(error.localizedDescription)"
         }
     }

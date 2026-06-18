@@ -53,6 +53,8 @@ struct MarketplaceView: View {
                                 Text(filter)
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(selectedFilter == filter ? AppTheme.accentBlue : AppTheme.textSecondary)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 8)
                                     .background(selectedFilter == filter ? AppTheme.accentBlue.opacity(0.1) : AppTheme.cardBackground)

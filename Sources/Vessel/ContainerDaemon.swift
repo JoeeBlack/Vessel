@@ -540,7 +540,10 @@ public final class ContainerDaemon: @unchecked Sendable {
         debugLog("Creating container instance...")
         let image = try await store.get(reference: normalizedRef)
         let platform = rosetta ? Platform(arch: "amd64", os: "linux") : Platform(arch: "arm64", os: "linux", variant: "v8")
-        let fsPath = storePath.appendingPathComponent("containers").appendingPathComponent("\(containerId)-rootfs.ext4")
+        let containerDir = storePath.appendingPathComponent("containers")
+        try? FileManager.default.createDirectory(at: containerDir, withIntermediateDirectories: true)
+        
+        let fsPath = containerDir.appendingPathComponent("\(containerId)-rootfs.ext4")
         let rootfs = try await image.unpack(for: platform, at: fsPath, blockSizeInBytes: UInt64(rootfsSizeGB * 1024 * 1024 * 1024), progress: nil)
 
         let container = LinuxContainer(containerId, rootfs: rootfs, vmm: vmm)
@@ -1125,7 +1128,8 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
         let contentStore = try LocalContentStore(path: contentPath)
         let store = try ImageStore(path: storePath, contentStore: contentStore)
-            let images = try await store.list()
+            let allImages = try await store.list()
+            let images = allImages.filter { !$0.reference.contains("ghcr.io/apple/containerization/vminit") }
             return images.map { img in
                 let ref = img.reference
                 let parts = ref.split(separator: ":")

@@ -81,7 +81,7 @@ struct VMTerminalView: NSViewRepresentable {
                     inputHandle.write(writeData)
                 }
             } catch {
-                print("Błąd zapisu do wejścia terminala: \(error.localizedDescription)")
+                print("Error writing to terminal input: \(error.localizedDescription)")
             }
         }
         
