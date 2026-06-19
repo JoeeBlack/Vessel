@@ -79,7 +79,7 @@ public final class RegistryClient: ContentClient {
         let port = url.port
         self.init(
             host: host,
-            scheme: scheme,
+            scheme: url.scheme,
             port: port,
             authentication: auth,
             retryOptions: Self.defaultRetryOptions

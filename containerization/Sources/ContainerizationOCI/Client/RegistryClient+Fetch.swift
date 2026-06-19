@@ -193,7 +193,7 @@ extension RegistryClient {
             try await handle.close()
         } catch {
             let safeHandle = handle
-            let _ = try? await Task {
+            await Task {
                 try? await safeHandle.close()
             }.value
             throw error
