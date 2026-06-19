@@ -44,7 +44,7 @@ public struct KeychainQuery {
             kSecAttrServer as String: host,
             kSecAttrAccount as String: user,
             kSecValueData as String: tokenEncoded,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
             kSecAttrSynchronizable as String: false,
         ]
         let status = SecItemAdd(query as CFDictionary, nil)

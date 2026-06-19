@@ -62,7 +62,6 @@ public final class RegistryClient: ContentClient {
 
     public convenience init(
         reference: String,
-        insecure: Bool = false,
         auth: Authentication? = nil,
         logger: Logger? = nil
     ) throws {
@@ -70,8 +69,7 @@ public final class RegistryClient: ContentClient {
         guard let domain = ref.resolvedDomain else {
             throw ContainerizationError(.invalidArgument, message: "Invalid domain for image reference \(reference)")
         }
-        let scheme = insecure ? "http" : "https"
-        let _url = "\(scheme)://\(domain)"
+        let _url = "https://\(domain)"
         guard let url = URL(string: _url) else {
             throw ContainerizationError(.invalidArgument, message: "Cannot convert \(_url) to URL")
         }

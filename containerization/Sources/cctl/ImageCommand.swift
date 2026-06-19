@@ -98,8 +98,6 @@ extension Application {
 
             @Option(name: .customLong("platform"), help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platformString: String?
 
-            @Flag(help: "Pull via plain text http") var http: Bool = false
-
             func run() async throws {
                 let imageStore = Application.imageStore
                 let platform: Platform? = try {
@@ -117,7 +115,7 @@ extension Application {
                 }
 
                 let image = try await Images.withAuthentication(ref: normalizedReference) { auth in
-                    try await imageStore.pull(reference: normalizedReference, platform: platform, insecure: http, auth: auth)
+                    try await imageStore.pull(reference: normalizedReference, platform: platform, auth: auth)
                 }
 
                 guard let image else {
@@ -156,8 +154,6 @@ extension Application {
 
             @Option(help: "Platform string in the form 'os/arch/variant'. Example 'linux/arm64/v8', 'linux/amd64'") var platformString: String?
 
-            @Flag(help: "Push via plain text http") var http: Bool = false
-
             @Argument var ref: String
 
             func run() async throws {
@@ -177,7 +173,7 @@ extension Application {
                 }
 
                 try await Images.withAuthentication(ref: normalizedReference) { auth in
-                    try await imageStore.push(reference: normalizedReference, platform: platform, insecure: http, auth: auth)
+                    try await imageStore.push(reference: normalizedReference, platform: platform, auth: auth)
                 }
                 print("image pushed")
             }

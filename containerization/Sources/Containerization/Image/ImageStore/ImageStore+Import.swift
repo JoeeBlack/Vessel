@@ -109,9 +109,15 @@ extension ImageStore {
                     let manifest: Manifest = try await self.getManifestContent(descriptor: desc)
                     out.append(manifest.config)
                     out.append(contentsOf: manifest.layers)
-                default:
-                    // TODO: Explicitly handle other content types
+                case MediaTypes.imageConfig, MediaTypes.dockerImageConfig,
+                    MediaTypes.imageLayer, MediaTypes.dockerImageLayer,
+                    MediaTypes.imageLayerGzip, MediaTypes.dockerImageLayerGzip,
+                    MediaTypes.imageLayerZstd, MediaTypes.dockerImageLayerZstd,
+                    MediaTypes.intototAttestationBlob, MediaTypes.descriptor,
+                    MediaTypes.layoutHeader, MediaTypes.emptyJSON:
                     continue
+                default:
+                    throw ContainerizationError(.unsupported, message: "Unsupported media type: \(mediaType)")
                 }
             }
             return out
