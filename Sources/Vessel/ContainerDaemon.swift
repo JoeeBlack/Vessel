@@ -661,7 +661,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             let svc = NetService(domain: "vessel.test.", type: "_http._tcp.", name: safeName, port: 80)
             netService = svc
             let box = SafeNetServiceBox(svc)
-            DispatchQueue.main.async {
+            await MainActor.run {
                 box.svc.publish()
             }
         }
@@ -897,7 +897,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             let svc = NetService(domain: "vessel.test.", type: "_http._tcp.", name: safeName, port: 80)
             netService = svc
             let box = SafeNetServiceBox(svc)
-            DispatchQueue.main.async {
+            await MainActor.run {
                 box.svc.publish()
             }
 
