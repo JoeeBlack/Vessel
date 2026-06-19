@@ -603,22 +603,12 @@ public final class ContainerDaemon: @unchecked Sendable {
         container.stderr = stderrWriter
         
         debugLog("Calling container.create()...")
-        let qos: DispatchQoS = isBackground ? .background : .utility
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            DispatchQueue(label: "com.vessel.daemon.vm", qos: qos).async {
-                Task {
-                    do {
-                        try await container.create()
-                        debugLog("Calling container.start()...")
-                        try await container.start()
-                        debugLog("Container started successfully!")
-                        continuation.resume()
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
-            }
-        }
+        try await Task { @MainActor in
+            try await container.create()
+            debugLog("Calling container.start()...")
+            try await container.start()
+            debugLog("Container started successfully!")
+        }.value
         
         if container.rosetta {
             // Manually run binfmt_misc registration in guest VM
@@ -839,19 +829,9 @@ public final class ContainerDaemon: @unchecked Sendable {
             container.stdout = stdoutWriter
             container.stderr = stderrWriter
             debugLog("Calling container.create()...")
-            let qosCreate: DispatchQoS = vessel.isBackground ? .background : .utility
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                DispatchQueue(label: "com.vessel.daemon.vm", qos: qosCreate).async {
-                    Task {
-                        do {
-                            try await container.create()
-                            continuation.resume()
-                        } catch {
-                            continuation.resume(throwing: error)
-                        }
-                    }
-                }
-            }
+            try await Task { @MainActor in
+                try await container.create()
+            }.value
             linux = container
         }
         
@@ -861,20 +841,10 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
 
         debugLog("Calling linuxContainer.start()...")
-        let qosStart: DispatchQoS = vessel.isBackground ? .background : .utility
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            DispatchQueue(label: "com.vessel.daemon.vm", qos: qosStart).async {
-                Task {
-                    do {
-                        try await linuxContainer.start()
-                        debugLog("linuxContainer.start() succeeded!")
-                        continuation.resume()
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
-            }
-        }
+        try await Task { @MainActor in
+            try await linuxContainer.start()
+            debugLog("linuxContainer.start() succeeded!")
+        }.value
         
         if linuxContainer.rosetta {
             // Manually run binfmt_misc registration in guest VM
