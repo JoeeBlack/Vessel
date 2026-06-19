@@ -18,13 +18,12 @@ import Foundation
 import SystemPackage
 
 /// Represents a UnixSocket that can be shared into or out of a container/guest.
-public struct UnixSocketConfiguration: Sendable {
-    // TODO: Realistically, we can just hash this struct and use it as the "id".
+public struct UnixSocketConfiguration: Sendable, Hashable {
     package var id: String {
-        _id
+        var hasher = Hasher()
+        self.hash(into: &hasher)
+        return String(hasher.finalize(), radix: 16)
     }
-
-    private let _id = UUID().uuidString
 
     /// The path to the socket you'd like relayed. For .into
     /// direction this should be the path on the host to a unix socket.
@@ -42,13 +41,29 @@ public struct UnixSocketConfiguration: Sendable {
     /// .outOf direction this will be the socket on the host.
     public var permissions: FilePermissions?
 
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(source)
+        hasher.combine(destination)
+        if let permissions = permissions {
+            hasher.combine(permissions.rawValue)
+        }
+        hasher.combine(direction)
+    }
+
+    public static func == (lhs: UnixSocketConfiguration, rhs: UnixSocketConfiguration) -> Bool {
+        return lhs.source == rhs.source &&
+               lhs.destination == rhs.destination &&
+               lhs.permissions == rhs.permissions &&
+               lhs.direction == rhs.direction
+    }
+
     /// The direction of the relay. `.into` for sharing a unix socket on your
     /// host into the container/guest. `outOf` shares a socket in the container/guest
     /// onto your host.
     public var direction: Direction
 
     /// Type that denotes the direction of the unix socket relay.
-    public enum Direction: Sendable {
+    public enum Direction: Sendable, Hashable {
         /// Share the socket into the container/guest.
         case into
         /// Share a socket in the container/guest onto the host.
