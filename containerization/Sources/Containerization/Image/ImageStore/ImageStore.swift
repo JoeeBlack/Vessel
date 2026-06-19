@@ -143,8 +143,6 @@ extension ImageStore {
     ///                For example: "docker.io/library/alpine:latest".
     ///   - platform: An optional parameter to indicate the platform to be pulled for the image.
     ///               Defaults to `nil` signifying that layers for all supported platforms by the image will be pulled.
-    ///   - insecure: A boolean indicating if the connection to the remote registry should be made via plain-text http or not.
-    ///               Defaults to false, meaning the connection to the registry will be over https.
     ///   - auth: An object that implements the `Authentication` protocol,
     ///           used to add any credentials to the HTTP requests that are made to the registry.
     ///           Defaults to `nil` meaning no additional credentials are added to any HTTP requests made to the registry.
@@ -152,12 +150,12 @@ extension ImageStore {
     ///
     /// - Returns: A `Containerization.Image` object to the newly pulled image.
     public func pull(
-        reference: String, platform: Platform? = nil, insecure: Bool = false,
+        reference: String, platform: Platform? = nil,
         auth: Authentication? = nil, progress: ProgressHandler? = nil
     ) async throws -> Image {
 
         let matcher = createPlatformMatcher(for: platform)
-        let client = try RegistryClient(reference: reference, insecure: insecure, auth: auth)
+        let client = try RegistryClient(reference: reference, auth: auth)
 
         let ref = try Reference.parse(reference)
         let name = ref.path
@@ -189,14 +187,12 @@ extension ImageStore {
     ///                For example: "ghcr.io/foo-bar-baz/image:v1".
     ///   - platform: An optional parameter to indicate the platform to be pushed for the image.
     ///               Defaults to `nil` signifying that layers for all supported platforms by the image will be pushed to the remote registry.
-    ///   - insecure: A boolean indicating if the connection to the remote registry should be made via plain-text http or not.
-    ///               Defaults to false, meaning the connection to the registry will be over https.
     ///   - auth: An object that implements the `Authentication` protocol,
     ///           used to add any credentials to the HTTP requests that are made to the registry.
     ///           Defaults to `nil` meaning no additional credentials are added to any HTTP requests made to the registry.
     ///   - progress: An optional handler over which progress update events about the push operation can be received.
     ///
-    public func push(reference: String, platform: Platform? = nil, insecure: Bool = false, auth: Authentication? = nil, progress: ProgressHandler? = nil) async throws {
+    public func push(reference: String, platform: Platform? = nil, auth: Authentication? = nil, progress: ProgressHandler? = nil) async throws {
         let matcher = createPlatformMatcher(for: platform)
         let img = try await self.get(reference: reference)
         let allowedMediaTypes = [MediaTypes.dockerManifestList, MediaTypes.index]
@@ -208,7 +204,7 @@ extension ImageStore {
         guard let tag = ref.tag ?? ref.digest else {
             throw ContainerizationError(.invalidArgument, message: "Invalid tag/digest for image reference \(reference)")
         }
-        let client = try RegistryClient(reference: reference, insecure: insecure, auth: auth)
+        let client = try RegistryClient(reference: reference, auth: auth)
         let operation = ExportOperation(name: name, tag: tag, contentStore: self.contentStore, client: client, progress: progress)
         try await operation.export(index: img.descriptor, platforms: matcher)
     }
