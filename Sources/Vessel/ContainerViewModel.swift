@@ -4,6 +4,7 @@ import SwiftUI
 import Containerization
 import UserNotifications
 import AppKit
+import OSLog
 
 func viewModelLog(_ msg: String) {
     let logFile = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/daemon.log")
@@ -69,6 +70,8 @@ public struct LogLine: Identifiable, Hashable, Sendable {
 
 @Observable
 public class ContainerViewModel: @unchecked Sendable {
+    private let logger = Logger(subsystem: "com.vessel.app", category: "ContainerViewModel")
+
     public var workloads: [VesselWorkload] = []
     public var domainRules: [DomainRule] = []
     
@@ -107,7 +110,7 @@ public class ContainerViewModel: @unchecked Sendable {
             self.workloads = try await daemon.fetchActiveWorkloads()
             self.domainRules = daemon.fetchDomainRules()
         } catch {
-            print("Error fetching workloads: \(error.localizedDescription)")
+            logger.error("Error fetching workloads: \(error.localizedDescription, privacy: .public)")
             self.workloads = []
             self.domainRules = daemon.fetchDomainRules()
         }
@@ -119,7 +122,7 @@ public class ContainerViewModel: @unchecked Sendable {
             self.workloads = try await daemon.fetchActiveWorkloads()
             self.domainRules = daemon.fetchDomainRules()
         } catch {
-            print("Error: \(error.localizedDescription)")
+            logger.error("Error: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -160,7 +163,7 @@ public class ContainerViewModel: @unchecked Sendable {
             await fetchInitialWorkloads()
             sendBuildCompletedNotification(containerName: name)
         } catch {
-            print("Error creating container: \(error.localizedDescription)")
+            logger.error("Error creating container: \(error.localizedDescription, privacy: .public)")
             self.errorMessage = "Failed to create container: \(error.localizedDescription)"
             self.workloads.removeAll(where: { 
                 if case .container(let c) = $0 { return c.id == newId }
@@ -177,7 +180,7 @@ public class ContainerViewModel: @unchecked Sendable {
             do {
                 try await center.requestAuthorization(options: [.alert, .sound, .badge])
             } catch {
-                print("Failed to request notification authorization: \(error)")
+                logger.error("Failed to request notification authorization: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -212,7 +215,7 @@ public class ContainerViewModel: @unchecked Sendable {
             Task { await streamLogs(for: id) }
             Task { await subscribeToStats(for: id) }
         } catch {
-            print("Error starting container: \(error.localizedDescription)")
+            logger.error("Error starting container: \(error.localizedDescription, privacy: .public)")
         }
     }
     
@@ -222,7 +225,7 @@ public class ContainerViewModel: @unchecked Sendable {
             try await daemon.startPod(yamlPath: url)
             await fetchInitialWorkloads()
         } catch {
-            print("Error starting pod: \(error.localizedDescription)")
+            logger.error("Error starting pod: \(error.localizedDescription, privacy: .public)")
             self.errorMessage = "Failed to start pod: \(error.localizedDescription)"
         }
     }
@@ -234,7 +237,7 @@ public class ContainerViewModel: @unchecked Sendable {
             try await daemon.pauseAll()
             await fetchInitialWorkloads()
         } catch {
-            print("Error pausing workloads: \(error)")
+            logger.error("Error pausing workloads: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -244,7 +247,7 @@ public class ContainerViewModel: @unchecked Sendable {
             try await daemon.resumeAll()
             await fetchInitialWorkloads()
         } catch {
-            print("Error resuming workloads: \(error)")
+            logger.error("Error resuming workloads: \(error.localizedDescription, privacy: .public)")
         }
     }
     @MainActor
@@ -256,7 +259,7 @@ public class ContainerViewModel: @unchecked Sendable {
             try await daemon.stop(containerId: id, force: force)
             await fetchInitialWorkloads()
         } catch {
-            print("Error stopping container: \(error.localizedDescription)")
+            logger.error("Error stopping container: \(error.localizedDescription, privacy: .public)")
         }
     }
     
@@ -269,7 +272,7 @@ public class ContainerViewModel: @unchecked Sendable {
             try await daemon.delete(containerId: id)
             await fetchInitialWorkloads()
         } catch {
-            print("Error deleting container: \(error.localizedDescription)")
+            logger.error("Error deleting container: \(error.localizedDescription, privacy: .public)")
             self.errorMessage = "Failed to delete container: \(error.localizedDescription)"
         }
     }

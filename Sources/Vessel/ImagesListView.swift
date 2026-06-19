@@ -9,9 +9,6 @@ struct ImagesListView: View {
     private let daemon = ContainerDaemon()
     
     let popularImages = ["ubuntu:latest", "alpine:latest", "nginx:latest", "redis:latest", "node:latest"]
-    
-    @State private var searchTask: Task<Void, Never>? = nil
-    @State private var isSearching = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {

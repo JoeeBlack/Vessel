@@ -8,6 +8,9 @@ public class BookmarkManager: @unchecked Sendable {
     private var activeUrls: [URL] = []
     private let activeUrlsLock = NSLock()
 
+    private var cachedBookmarks: [String: Data] = [:]
+    private let bookmarksLock = NSLock()
+
     private init() {
         restoreAccess()
     }
@@ -27,7 +30,11 @@ public class BookmarkManager: @unchecked Sendable {
     }
 
     private func hasAccess(to url: URL) -> Bool {
-        guard let bookmarks = UserDefaults.standard.dictionary(forKey: userDefaultsKey) as? [String: Data] else {
+        bookmarksLock.lock()
+        let bookmarks = cachedBookmarks
+        bookmarksLock.unlock()
+
+        if bookmarks.isEmpty {
             return false
         }
 
@@ -120,15 +127,22 @@ public class BookmarkManager: @unchecked Sendable {
     private func saveBookmark(for url: URL) throws {
         let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
 
-        var bookmarks = UserDefaults.standard.dictionary(forKey: userDefaultsKey) as? [String: Data] ?? [:]
-        bookmarks[url.path] = bookmarkData
-        UserDefaults.standard.set(bookmarks, forKey: userDefaultsKey)
+        bookmarksLock.lock()
+        cachedBookmarks[url.path] = bookmarkData
+        let updatedBookmarks = cachedBookmarks
+        bookmarksLock.unlock()
+
+        UserDefaults.standard.set(updatedBookmarks, forKey: userDefaultsKey)
     }
 
     public func restoreAccess() {
         guard let bookmarks = UserDefaults.standard.dictionary(forKey: userDefaultsKey) as? [String: Data] else {
             return
         }
+
+        bookmarksLock.lock()
+        cachedBookmarks = bookmarks
+        bookmarksLock.unlock()
 
         var updatedBookmarks = bookmarks
         var isStale = false
@@ -147,6 +161,10 @@ public class BookmarkManager: @unchecked Sendable {
                 }
             }
         }
+
+        bookmarksLock.lock()
+        cachedBookmarks = updatedBookmarks
+        bookmarksLock.unlock()
 
         UserDefaults.standard.set(updatedBookmarks, forKey: userDefaultsKey)
     }
