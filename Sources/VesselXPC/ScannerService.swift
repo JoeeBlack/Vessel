@@ -110,20 +110,30 @@ public actor ScannerService {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        var outData = Data()
-        var errData = Data()
+        final class ThreadSafeData: @unchecked Sendable {
+            private var data = Data()
+            private let lock = NSLock()
+            func append(_ newData: Data) {
+                lock.lock()
+                data.append(newData)
+                lock.unlock()
+            }
+            func get() -> Data {
+                lock.lock()
+                defer { lock.unlock() }
+                return data
+            }
+        }
 
-        let outLock = NSLock()
-        let errLock = NSLock()
+        let outData = ThreadSafeData()
+        let errData = ThreadSafeData()
 
         stdoutPipe.fileHandleForReading.readabilityHandler = { fh in
             let data = fh.availableData
             if data.isEmpty {
                 stdoutPipe.fileHandleForReading.readabilityHandler = nil
             } else {
-                outLock.lock()
                 outData.append(data)
-                outLock.unlock()
             }
         }
 
@@ -132,9 +142,7 @@ public actor ScannerService {
             if data.isEmpty {
                 stderrPipe.fileHandleForReading.readabilityHandler = nil
             } else {
-                errLock.lock()
                 errData.append(data)
-                errLock.unlock()
             }
         }
 
@@ -150,15 +158,10 @@ public actor ScannerService {
                 stdoutPipe.fileHandleForReading.readabilityHandler = nil
                 stderrPipe.fileHandleForReading.readabilityHandler = nil
 
-                outLock.lock()
-                let finalOutData = outData
-                outLock.unlock()
-
-                errLock.lock()
-                let finalErrData = errData
-                errLock.unlock()
-
-                if p.terminationStatus != 0 {
+                let finalOutData = outData.get()
+                let finalErrData = errData.get()
+                
+                guard p.terminationStatus == 0 else {
                     let errString = String(data: finalErrData, encoding: .utf8) ?? "Unknown error"
                     continuation.resume(throwing: ScannerError.executionFailed("Exit code \(p.terminationStatus). \(errString)"))
                     return
