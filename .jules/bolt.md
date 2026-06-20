@@ -36,3 +36,7 @@
 ## 2026-06-18 - Replacing declarative charts with Canvas
 **Learning:** Declarative Charts (like Swift Charts) use complex view diffing logic that can cause CPU spikes and dropped frames when subjected to high-frequency state changes (e.g. 100ms real-time metric updates in monitoring dashboards).
 **Action:** When creating high-frequency live updating graphs in SwiftUI, bypass `Chart` views and use immediate-mode rendering via the `Canvas` API to push drawing operations directly to Metal, thereby freeing the main thread.
+
+## 2026-06-19 - Avoid Repeated UserDefaults Decoding
+**Learning:** In Swift, repeatedly accessing and decoding complex collections (like dictionaries) directly from `UserDefaults` in high-frequency access paths incurs significant disk I/O and decoding overhead.
+**Action:** Use a thread-safe in-memory cache synchronized with `UserDefaults` to resolve this.
