@@ -883,6 +883,45 @@ public final class ContainerDaemon: @unchecked Sendable {
         saveContainers()
     }
     
+    public func listFiles(in path: String, containerId: String) async throws -> String {
+        let writer = StringWriter()
+        let process = try await exec(containerId: containerId, args: ["ls", "-lpA", path], stdout: writer)
+        _ = try await process.wait()
+        return writer.output
+    }
+
+    public func downloadFile(containerId: String, path: String, to destinationURL: URL) async throws {
+        let writer = try FileWriter(url: destinationURL)
+        let process = try await exec(containerId: containerId, args: ["cat", path], stdout: writer)
+        _ = try await process.wait()
+        try? writer.close()
+    }
+
+    public func uploadFile(containerId: String, from sourceURL: URL, to destinationPath: String) async throws {
+        let reader = FileReader(url: sourceURL)
+        let process = try await exec(containerId: containerId, args: ["sh", "-c", "cat > \"$1\"", "--", destinationPath], stdin: reader)
+        _ = try await process.wait()
+    }
+
+    public func exec(containerId: String, args: [String], stdout: Containerization.Writer? = nil, stderr: Containerization.Writer? = nil, stdin: Containerization.ReaderStream? = nil) async throws -> LinuxProcess {
+        guard let active = activeContainers[containerId] else { throw NSError(domain: "Vessel", code: 404, userInfo: [NSLocalizedDescriptionKey: "Container not found"]) }
+        guard let linux = active.linux else { throw NSError(domain: "Vessel", code: 400, userInfo: [NSLocalizedDescriptionKey: "Container not running"]) }
+
+        let config = ContainerizationOCI.Process(
+            args: args,
+            env: [
+                "TERM=xterm-256color",
+                "HOME=/root",
+                "USER=root"
+            ],
+            terminal: false
+        )
+        let execId = "exec-\(UUID().uuidString)"
+        let process = try await linux.exec(execId, configuration: config, stdin: stdin, stdout: stdout, stderr: stderr)
+        try await process.start()
+        return process
+    }
+
     public func execShell(containerId: String, stdin: Containerization.ReaderStream, stdout: Containerization.Writer) async throws -> LinuxProcess {
         guard let active = activeContainers[containerId] else { throw NSError(domain: "Vessel", code: 404, userInfo: [NSLocalizedDescriptionKey: "Container not found"]) }
         
