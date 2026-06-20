@@ -41,6 +41,16 @@ enum EnvironmentDef: Codable {
             self = .dictionary([:]) // Fallback
         }
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .dictionary(let dict):
+            try container.encode(dict)
+        case .list(let list):
+            try container.encode(list)
+        }
+    }
 }
 
 enum PortDef: Codable {
@@ -55,6 +65,16 @@ enum PortDef: Codable {
             self = .string(stringVal)
         } else {
             throw DecodingError.typeMismatch(PortDef.self, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected Int or String"))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .integer(let val):
+            try container.encode(val)
+        case .string(let val):
+            try container.encode(val)
         }
     }
 
@@ -75,6 +95,14 @@ enum VolumeDef: Codable {
             self = .string(stringVal)
         } else {
             throw DecodingError.typeMismatch(VolumeDef.self, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected String for simple volume format"))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let val):
+            try container.encode(val)
         }
     }
 
@@ -100,9 +128,66 @@ struct AnyString: Codable {
             value = try container.decode(String.self)
         }
     }
+
+    init(value: String) {
+        self.value = value
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
 }
 
 public class ComposeParser {
+    public static func injectSecrets(into project: ComposeProject, envFileUrl: URL? = nil) -> ComposeProject {
+        var envVars: [String: String] = [:]
+
+        if let url = envFileUrl, FileManager.default.fileExists(atPath: url.path) {
+            do {
+                envVars = try SecretsManager.shared.loadEnvFile(at: url)
+            } catch {
+                print("Failed to load .env file: \(error)")
+            }
+        }
+
+        var updatedServices: [ComposeService] = []
+        for service in project.services {
+            var mergedEnv = envVars
+            // Override with service specific envs
+            for (k, v) in service.environment {
+                mergedEnv[k] = v
+            }
+
+            // Resolve keychain secrets
+            for (k, v) in mergedEnv {
+                if v.hasPrefix("keychain://") {
+                    let secretKey = String(v.dropFirst("keychain://".count))
+                    do {
+                        if let secretValue = try SecretsManager.shared.getGlobalSecret(key: secretKey) {
+                            mergedEnv[k] = secretValue
+                        } else {
+                            mergedEnv[k] = ""
+                        }
+                    } catch {
+                        mergedEnv[k] = ""
+                    }
+                }
+            }
+
+            let updatedService = ComposeService(
+                name: service.name,
+                image: service.image,
+                environment: mergedEnv,
+                ports: service.ports,
+                volumes: service.volumes
+            )
+            updatedServices.append(updatedService)
+        }
+
+        return ComposeProject(name: project.name, services: updatedServices)
+    }
+
     public static func parse(yaml: String, projectName: String) throws -> ComposeProject {
         // 🛡️ Sentinel: Mitigate YAML "Billion Laughs" alias attacks
         // Reject excessively large YAML files to prevent memory exhaustion
