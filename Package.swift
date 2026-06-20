@@ -29,7 +29,7 @@ let package = Package(
             ],
             path: "Sources/vesseld",
             swiftSettings: [
-                .unsafeFlags(["-whole-module-optimization"])
+                .unsafeFlags(["-whole-module-optimization"], .when(configuration: .release))
             ],
             linkerSettings: [
                 .unsafeFlags(["-Xlinker", "-dead_strip"])
