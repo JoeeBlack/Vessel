@@ -55,6 +55,20 @@ class VesselXPCServer: NSObject, VesselXPCProtocol, @unchecked Sendable {
             }
         }
     }
+
+    func scanImage(reference: String, reply: @escaping (Data?, Error?) -> Void) {
+        nonisolated(unsafe) let safeReply = reply
+        Task {
+            let scanner = ScannerService()
+            do {
+                let vulns = try await scanner.scanImage(reference: reference)
+                let data = try JSONEncoder().encode(vulns)
+                safeReply(data, nil)
+            } catch {
+                safeReply(nil, error)
+            }
+        }
+    }
 }
 
 class VesselXPCListenerDelegate: NSObject, NSXPCListenerDelegate {

@@ -9,6 +9,10 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
     func wakeContainer(containerId: String, reply: @escaping (String?, Error?) -> Void) {
         reply("vesseld cannot wake container: not implemented", nil)
     }
+
+    func scanImage(reference: String, reply: @escaping (Data?, Error?) -> Void) {
+        reply(nil, NSError(domain: "VesselDaemonXPC", code: 501, userInfo: [NSLocalizedDescriptionKey: "Not implemented in daemon"]))
+    }
 }
 
 class VesselDaemonDelegate: NSObject, NSXPCListenerDelegate {
