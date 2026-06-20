@@ -10,6 +10,7 @@ struct ContentView: View {
         case images = "Images"
         case marketplace = "Marketplace"
         case networks = "Networks"
+        case networkMap = "Network Map"
         case settings = "Settings"
         case volumes = "Volumes"
         
@@ -20,6 +21,7 @@ struct ContentView: View {
             case .images: return "square.stack.3d.up"
             case .marketplace: return "storefront"
             case .networks: return "network"
+            case .networkMap: return "map"
             case .volumes: return "externaldrive"
             case .settings: return "gearshape"
             }
@@ -174,6 +176,8 @@ struct ContentView: View {
                         MarketplaceView(viewModel: viewModel)
                     } else if selectedSidebarItem == .networks {
                         NetworksListView()
+                    } else if selectedSidebarItem == .networkMap {
+                        NetworkMapView()
                     } else if selectedSidebarItem == .volumes {
                         VolumesManagerView(viewModel: viewModel)
                     } else if selectedSidebarItem == .settings {
