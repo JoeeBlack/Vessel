@@ -154,8 +154,9 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
     public let volumes: [VesselVolume]
     public let portForwards: [VesselPortForward]
     public let domain: VesselDomain
+    public let networkName: String
     
-    public init(id: String, name: String, subtitle: String, image: String, status: VesselStatus, ipAddress: String? = nil, dnsName: String? = nil, uptime: String? = nil, ports: String? = nil, memoryUsage: String? = nil, volume: String? = nil, exitStatus: String? = nil, rosettaEnabled: Bool = false, networkingEnabled: Bool = true, isBackground: Bool = false, rootfsSize: String = "8GB", cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], portForwards: [VesselPortForward] = [], domain: VesselDomain = .generic) {
+    public init(id: String, name: String, subtitle: String, image: String, status: VesselStatus, ipAddress: String? = nil, dnsName: String? = nil, uptime: String? = nil, ports: String? = nil, memoryUsage: String? = nil, volume: String? = nil, exitStatus: String? = nil, rosettaEnabled: Bool = false, networkingEnabled: Bool = true, isBackground: Bool = false, rootfsSize: String = "8GB", cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], portForwards: [VesselPortForward] = [], domain: VesselDomain = .generic, networkName: String? = nil) {
         self.id = id
         self.name = name
         self.subtitle = subtitle
@@ -178,13 +179,14 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
         self.volumes = volumes
         self.portForwards = portForwards
         self.domain = domain
+        self.networkName = networkName ?? (networkingEnabled ? "vessel-default" : "none")
     }
 
 
 
 
     enum CodingKeys: String, CodingKey {
-        case id, name, subtitle, image, status, ipAddress, dnsName, uptime, ports, memoryUsage, volume, exitStatus, rosettaEnabled, networkingEnabled, isBackground, rootfsSize, cpus, memoryGB, envVars, volumes, portForwards, domain
+        case id, name, subtitle, image, status, ipAddress, dnsName, uptime, ports, memoryUsage, volume, exitStatus, rosettaEnabled, networkingEnabled, isBackground, rootfsSize, cpus, memoryGB, envVars, volumes, portForwards, domain, networkName
     }
 
 
@@ -214,6 +216,7 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
         try container.encode(volumes, forKey: .volumes)
         try container.encode(portForwards, forKey: .portForwards)
         try container.encode(domain, forKey: .domain)
+        try container.encode(networkName, forKey: .networkName)
     }
 
     public init(from decoder: Decoder) throws {
@@ -240,6 +243,9 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
         self.volumes = try container.decode([VesselVolume].self, forKey: .volumes)
         self.portForwards = try container.decodeIfPresent([VesselPortForward].self, forKey: .portForwards) ?? []
         self.domain = try container.decodeIfPresent(VesselDomain.self, forKey: .domain) ?? .generic
+
+        let networkingEnabled = try container.decodeIfPresent(Bool.self, forKey: .networkingEnabled) ?? true
+        self.networkName = try container.decodeIfPresent(String.self, forKey: .networkName) ?? (networkingEnabled ? "vessel-default" : "none")
     }
 }
 

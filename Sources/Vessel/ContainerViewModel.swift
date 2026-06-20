@@ -153,7 +153,7 @@ public class ContainerViewModel: @unchecked Sendable {
         loadingContainers.insert(newId)
         
         // Add a temporary container to the UI
-        let placeholder = VesselContainer(id: newId, name: name, subtitle: "WORKLOAD", image: image, status: .creating, isBackground: isBackground, portForwards: portForwards, domain: domain)
+        let placeholder = VesselContainer(id: newId, name: name, subtitle: "WORKLOAD", image: image, status: .creating, networkingEnabled: enableNetworking, isBackground: isBackground, portForwards: portForwards, domain: domain)
         self.workloads.insert(.container(placeholder), at: 0)
         
         defer { loadingContainers.remove(newId) }

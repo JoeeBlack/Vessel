@@ -178,7 +178,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
         for var vessel in vessels {
             // Mark as stopped initially
-            vessel = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, isBackground: vessel.isBackground, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes)
+            vessel = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, isBackground: vessel.isBackground, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
             activeContainers[vessel.id] = ActiveContainer(vessel: vessel, linux: nil, logStream: nil)
         }
     }
@@ -422,7 +422,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             id: podId,
             name: projectName,
             status: .running,
-            containers: containers.map { VesselContainer(id: $0.id, name: $0.name, subtitle: $0.subtitle, image: $0.image, status: .running, ipAddress: $0.ipAddress, rosettaEnabled: $0.rosettaEnabled, networkingEnabled: $0.networkingEnabled, isBackground: $0.isBackground, rootfsSize: $0.rootfsSize, cpus: $0.cpus, memoryGB: $0.memoryGB, envVars: $0.envVars, volumes: $0.volumes) },
+            containers: containers.map { VesselContainer(id: $0.id, name: $0.name, subtitle: $0.subtitle, image: $0.image, status: .running, ipAddress: $0.ipAddress, rosettaEnabled: $0.rosettaEnabled, networkingEnabled: $0.networkingEnabled, isBackground: $0.isBackground, rootfsSize: $0.rootfsSize, cpus: $0.cpus, memoryGB: $0.memoryGB, envVars: $0.envVars, volumes: $0.volumes, portForwards: $0.portForwards, domain: $0.domain, networkName: $0.networkName) },
             cpus: 4,
             memoryGB: 4.0
         )
@@ -878,7 +878,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             }
         }
 
-        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.networkingEnabled ? "127.0.0.1" : nil, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: nil, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, isBackground: vessel.isBackground, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
+        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.networkingEnabled ? "127.0.0.1" : nil, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: nil, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, isBackground: vessel.isBackground, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
         activeContainers[containerId] = ActiveContainer(vessel: updated, linux: linux, logStream: stream, portForwarders: activeForwarders, netService: netService)
         saveContainers()
     }
@@ -1000,7 +1000,7 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
                 try? await linux.pause()
 
                 let vessel = active.vessel
-                let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .paused, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
+                let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .paused, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
                 activeContainers[id] = ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders)
             }
         }
@@ -1012,7 +1012,7 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
                 let pod = activePod.pod
                 let updatedContainers = pod.containers.map {
                     let container = $0
-                    let updated = VesselContainer(id: container.id, name: container.name, subtitle: container.subtitle, image: container.image, status: .paused, ipAddress: container.ipAddress, dnsName: container.dnsName, uptime: container.uptime, ports: container.ports, memoryUsage: container.memoryUsage, volume: container.volume, exitStatus: container.exitStatus, rosettaEnabled: container.rosettaEnabled, networkingEnabled: container.networkingEnabled, rootfsSize: container.rootfsSize, cpus: container.cpus, memoryGB: container.memoryGB, envVars: container.envVars, volumes: container.volumes, portForwards: container.portForwards, domain: container.domain)
+                    let updated = VesselContainer(id: container.id, name: container.name, subtitle: container.subtitle, image: container.image, status: .paused, ipAddress: container.ipAddress, dnsName: container.dnsName, uptime: container.uptime, ports: container.ports, memoryUsage: container.memoryUsage, volume: container.volume, exitStatus: container.exitStatus, rosettaEnabled: container.rosettaEnabled, networkingEnabled: container.networkingEnabled, rootfsSize: container.rootfsSize, cpus: container.cpus, memoryGB: container.memoryGB, envVars: container.envVars, volumes: container.volumes, portForwards: container.portForwards, domain: container.domain, networkName: container.networkName)
                     return updated
                 }
                 let updatedPod = VesselPod(id: pod.id, name: pod.name, status: .paused, containers: updatedContainers, cpus: pod.cpus, memoryGB: pod.memoryGB)
@@ -1030,7 +1030,7 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
                 try? await linux.resume()
 
                 let vessel = active.vessel
-                let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
+                let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
                 activeContainers[id] = ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders)
             }
         }
@@ -1042,7 +1042,7 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
                 let pod = activePod.pod
                 let updatedContainers = pod.containers.map {
                     let container = $0
-                    let updated = VesselContainer(id: container.id, name: container.name, subtitle: container.subtitle, image: container.image, status: .running, ipAddress: container.ipAddress, dnsName: container.dnsName, uptime: container.uptime, ports: container.ports, memoryUsage: container.memoryUsage, volume: container.volume, exitStatus: container.exitStatus, rosettaEnabled: container.rosettaEnabled, networkingEnabled: container.networkingEnabled, rootfsSize: container.rootfsSize, cpus: container.cpus, memoryGB: container.memoryGB, envVars: container.envVars, volumes: container.volumes, portForwards: container.portForwards, domain: container.domain)
+                    let updated = VesselContainer(id: container.id, name: container.name, subtitle: container.subtitle, image: container.image, status: .running, ipAddress: container.ipAddress, dnsName: container.dnsName, uptime: container.uptime, ports: container.ports, memoryUsage: container.memoryUsage, volume: container.volume, exitStatus: container.exitStatus, rosettaEnabled: container.rosettaEnabled, networkingEnabled: container.networkingEnabled, rootfsSize: container.rootfsSize, cpus: container.cpus, memoryGB: container.memoryGB, envVars: container.envVars, volumes: container.volumes, portForwards: container.portForwards, domain: container.domain, networkName: container.networkName)
                     return updated
                 }
                 let updatedPod = VesselPod(id: pod.id, name: pod.name, status: .running, containers: updatedContainers, cpus: pod.cpus, memoryGB: pod.memoryGB)
@@ -1082,7 +1082,7 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         }
 
         let vessel = active.vessel
-        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: force ? "Force Stopped by user" : "Stopped by user", rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, isBackground: vessel.isBackground, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain)
+        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: force ? "Force Stopped by user" : "Stopped by user", rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, isBackground: vessel.isBackground, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
         activeContainers[containerId] = ActiveContainer(vessel: updated, linux: nil, logStream: nil, portForwarders: [])
         saveContainers()
     }
