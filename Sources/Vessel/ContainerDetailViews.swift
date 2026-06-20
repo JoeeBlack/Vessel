@@ -4,6 +4,7 @@ struct ContainerConsoleView: View {
     let container: VesselContainer
     var viewModel: ContainerViewModel
     @State private var logSearchText = ""
+    @State private var aiViewModel = AIAnalysisViewModel()
 
     var body: some View {
         let isRunning = container.status == .running
@@ -15,6 +16,54 @@ struct ContainerConsoleView: View {
                         .font(.system(size: 16, weight: .semibold, design: .default))
                         .foregroundColor(AppTheme.textPrimary)
                     Spacer()
+
+                    Button(action: {
+                        let lines = viewModel.currentLogs.suffix(50).joined(separator: "\n")
+                        aiViewModel.analyzeLogs(trace: lines)
+                    }) {
+                        HStack {
+                            Image(systemName: "sparkles")
+                            Text("Wyjaśnij logi")
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(AppTheme.accentBlue.opacity(0.1))
+                    .foregroundColor(AppTheme.accentBlue)
+                    .cornerRadius(8)
+                    .popover(isPresented: $aiViewModel.isPopoverPresented) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            if aiViewModel.isAnalyzing {
+                                HStack {
+                                    ProgressView()
+                                        .scaleEffect(0.5)
+                                    Text("Analiza logów...")
+                                        .foregroundColor(AppTheme.textSecondary)
+                                }
+                            } else if let error = aiViewModel.errorMessage {
+                                Text("Błąd:")
+                                    .font(.headline)
+                                    .foregroundColor(.red)
+                                Text(error)
+                                    .foregroundColor(AppTheme.textPrimary)
+                            } else if let result = aiViewModel.analysisResult {
+                                ScrollView {
+                                    if let attrString = try? AttributedString(markdown: result) {
+                                        Text(attrString)
+                                            .foregroundColor(AppTheme.textPrimary)
+                                            .padding()
+                                    } else {
+                                        Text(result)
+                                            .foregroundColor(AppTheme.textPrimary)
+                                            .padding()
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                        .frame(width: 400, height: 300)
+                    }
 
                     // Log Search
                     HStack {
