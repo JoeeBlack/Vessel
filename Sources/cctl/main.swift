@@ -60,42 +60,28 @@ struct EnableWake: ParsableCommand {
         let label = "com.vessel.wake.\(containerId).\(port)"
         let plistPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/LaunchAgents/\(label).plist")
 
-        let plistContent = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>Label</key>
-            <string>\(label)</string>
-            <key>ProgramArguments</key>
-            <array>
-                <string>/Applications/Vessel.app/Contents/Resources/cctl</string>
-                <string>wake-proxy</string>
-                <string>\(containerId)</string>
-                <string>\(targetPort)</string>
-            </array>
-            <key>inetdCompatibility</key>
-            <dict>
-                <key>Wait</key>
-                <false/>
-            </dict>
-            <key>Sockets</key>
-            <dict>
-                <key>Listeners</key>
-                <dict>
-                    <key>SockNodeName</key>
-                    <string>127.0.0.1</string>
-                    <key>SockServiceName</key>
-                    <string>\(port)</string>
-                    <key>SockType</key>
-                    <string>stream</string>
-                </dict>
-            </dict>
-        </dict>
-        </plist>
-        """
+        let plistDict: [String: Any] = [
+            "Label": label,
+            "ProgramArguments": [
+                "/Applications/Vessel.app/Contents/Resources/cctl",
+                "wake-proxy",
+                containerId,
+                String(targetPort)
+            ],
+            "inetdCompatibility": [
+                "Wait": false
+            ],
+            "Sockets": [
+                "Listeners": [
+                    "SockNodeName": "127.0.0.1",
+                    "SockServiceName": String(port),
+                    "SockType": "stream"
+                ]
+            ]
+        ]
 
-        try plistContent.write(to: plistPath, atomically: true, encoding: .utf8)
+        let plistData = try PropertyListSerialization.data(fromPropertyList: plistDict, format: .xml, options: 0)
+        try plistData.write(to: plistPath, options: .atomic)
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
