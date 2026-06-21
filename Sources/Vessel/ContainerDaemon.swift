@@ -282,7 +282,7 @@ public final class ContainerDaemon: @unchecked Sendable {
                         }
 
                         let resolvedHostPath = URL(fileURLWithPath: actualHostPath).resolvingSymlinksInPath().path
-                        try BookmarkManager.shared.resolveAndAccess(path: resolvedHostPath)
+                        try await BookmarkManager.shared.resolveAndAccess(path: resolvedHostPath)
                     }
                 }
             }
@@ -467,7 +467,7 @@ public final class ContainerDaemon: @unchecked Sendable {
 
         // 🛡️ Sentinel: Ensure App Sandbox access to host paths using Security-Scoped Bookmarks
         for volume in volumes {
-            try BookmarkManager.shared.resolveAndAccess(path: volume.host)
+            try await BookmarkManager.shared.resolveAndAccess(path: volume.host)
         }
 
         @Sendable func debugLog(_ msg: String) {
@@ -721,7 +721,7 @@ public final class ContainerDaemon: @unchecked Sendable {
 
         // 🛡️ Sentinel: Ensure App Sandbox access to host paths using Security-Scoped Bookmarks
         for volume in vessel.volumes {
-            try BookmarkManager.shared.resolveAndAccess(path: volume.host)
+            try await BookmarkManager.shared.resolveAndAccess(path: volume.host)
         }
 
         // Recreate linux container if it doesn't exist
@@ -1001,7 +1001,7 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
 
                 let vessel = active.vessel
                 let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .paused, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
-                activeContainers[id] = ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders)
+                activeContainers[id] = ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders, netService: active.netService)
             }
         }
         for (id, activePod) in activePods {
@@ -1031,7 +1031,7 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
 
                 let vessel = active.vessel
                 let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
-                activeContainers[id] = ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders)
+                activeContainers[id] = ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders, netService: active.netService)
             }
         }
         for (id, activePod) in activePods {

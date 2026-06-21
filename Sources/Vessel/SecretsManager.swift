@@ -50,10 +50,10 @@ public class SecretsManager {
         var dataTypeRef: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
 
-        if status == errSecSuccess, let data = dataTypeRef as? Data {
+        if status == errSecSuccess, var data = dataTypeRef as? Data {
             let value = String(data: data, encoding: .utf8)
             // Memory zeroing
-            zeroData(data)
+            zeroData(&data)
             return value
         } else if status == errSecItemNotFound {
             return nil
@@ -125,8 +125,8 @@ public class SecretsManager {
         ]
 
         if FileManager.default.fileExists(atPath: url.path) {
-            try FileManager.default.setAttributes(attributes, ofItemAtPath: url.path)
             try data.write(to: url, options: .atomic)
+            try FileManager.default.setAttributes(attributes, ofItemAtPath: url.path)
         } else {
             FileManager.default.createFile(atPath: url.path, contents: data, attributes: attributes)
         }
@@ -134,10 +134,9 @@ public class SecretsManager {
 
     // MARK: - Security Helpers
 
-    private func zeroData(_ data: Data) {
-        var mutableData = data
-        let count = mutableData.count
-        mutableData.withUnsafeMutableBytes { ptr in
+    private func zeroData(_ data: inout Data) {
+        let count = data.count
+        data.withUnsafeMutableBytes { ptr in
             if let baseAddress = ptr.baseAddress {
                 memset(baseAddress, 0, count)
             }
