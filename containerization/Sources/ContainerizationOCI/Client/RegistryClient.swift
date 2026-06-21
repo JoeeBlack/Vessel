@@ -97,7 +97,7 @@ public final class RegistryClient: ContentClient {
         logger: Logger? = nil
     ) {
         var components = URLComponents()
-        components.scheme = scheme
+        components.scheme = "https"
         components.host = host
         components.port = port
 
