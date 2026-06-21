@@ -71,6 +71,10 @@ cat > "$XPCSERVICE_DIR/Contents/Info.plist" <<EOF2
     <dict>
         <key>ServiceType</key>
         <string>Application</string>
+        <key>RunLoopType</key>
+        <string>NSRunLoop</string>
+        <key>JoinExistingSession</key>
+        <true/>
     </dict>
 </dict>
 </plist>
