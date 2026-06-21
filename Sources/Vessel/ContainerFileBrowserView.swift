@@ -78,22 +78,7 @@ public struct ContainerFileBrowserView: View {
 
             Table(viewModel.files, selection: $selection) {
                 TableColumn("Name") { item in
-                    HStack {
-                        Image(systemName: item.isDirectory ? "folder.fill" : "doc.text.fill")
-                            .foregroundColor(item.isDirectory ? AppTheme.accentBlue : .gray)
-                        Text(item.name)
-                            .foregroundColor(AppTheme.textPrimary)
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture(count: 2) {
-                        if item.isDirectory {
-                            Task { await viewModel.loadDirectory(path: item.path) }
-                        }
-                    }
-                    .onDrag {
-                        let provider = AsyncFilePromiseProvider(item: item, viewModel: viewModel)
-                        return NSItemProvider(object: provider)
-                    }
+                    FileRowView(item: item, viewModel: viewModel)
                 }
                 TableColumn("Size") { item in
                     Text(item.size)
@@ -200,4 +185,49 @@ public struct ContainerFileBrowserView: View {
         }
     }
 
+}
+
+struct FileRowView: View {
+    let item: FileItem
+    let viewModel: FileBrowserViewModel
+
+    var body: some View {
+        HStack {
+            Image(systemName: item.isDirectory ? "folder.fill" : "doc.text.fill")
+                .foregroundColor(item.isDirectory ? AppTheme.accentBlue : .gray)
+            Text(item.name)
+                .foregroundColor(AppTheme.textPrimary)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            if item.isDirectory {
+                Task { await viewModel.loadDirectory(path: item.path) }
+            }
+        }
+        .onDrag {
+            let provider = NSItemProvider()
+            provider.suggestedName = item.name
+            provider.registerFileRepresentation(forTypeIdentifier: "public.data", fileOptions: [], visibility: .all) { completionHandler in
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent(item.name)
+                struct HandlerWrapper: @unchecked Sendable {
+                    let handler: (URL?, Bool, Error?) -> Void
+                }
+                let wrapper = HandlerWrapper(handler: completionHandler)
+                let vm = viewModel
+                let fi = item
+                
+                Task {
+                    do {
+                        try? FileManager.default.removeItem(at: url)
+                        await vm.download(file: fi, to: url)
+                        wrapper.handler(url, true, nil)
+                    } catch {
+                        wrapper.handler(nil, false, error)
+                    }
+                }
+                return nil
+            }
+            return provider
+        }
+    }
 }

@@ -82,7 +82,7 @@ public struct NetworkMapView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(AppTheme.mainBackground)
+                .background(AppTheme.mainBackgroundGradient)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .padding(.horizontal, 40)
                 .padding(.bottom, 40)

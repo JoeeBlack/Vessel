@@ -319,11 +319,18 @@ public final class ContainerDaemon: @unchecked Sendable {
         var linuxContainers: [String: LinuxContainer] = [:]
         
         // Pods currently default to arm64, but can be updated later to handle rosetta per service
-        let platform = Platform(arch: "arm64", os: "linux", variant: "v8")
+        let platform = Platform(arch: "arm64", os: "linux", variant: nil)
         
         for service in project.services {
             let normalizedRef = normalize(reference: service.image)
-            let image = try await store.get(reference: normalizedRef)
+            let image: Containerization.Image
+            do {
+                image = try await store.get(reference: normalizedRef)
+            } catch let err as ContainerizationError where err.code == .notFound {
+                // Image not found locally, pull it first
+                image = try await store.pull(reference: normalizedRef, platform: platform, auth: nil, progress: nil)
+            }
+            
             let fsPath = storePath.appendingPathComponent("containers").appendingPathComponent("\(podId)-\(service.name)-rootfs.ext4")
             
             let rootfs = try await image.unpack(for: platform, at: fsPath, blockSizeInBytes: 8.gib(), progress: nil)

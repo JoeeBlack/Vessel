@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-public class SecretsManager {
+public class SecretsManager: @unchecked Sendable {
     public static let shared = SecretsManager()
 
     private init() {}
@@ -142,5 +142,24 @@ public class SecretsManager {
                 memset(baseAddress, 0, count)
             }
         }
+    }
+}
+
+public struct EnvParser {
+    public static func parse(envString: String) -> [String: String] {
+        var envVars: [String: String] = [:]
+        for line in envString.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { continue }
+            if let index = trimmed.firstIndex(of: "=") {
+                let key = String(trimmed[..<index]).trimmingCharacters(in: .whitespaces)
+                var value = String(trimmed[trimmed.index(after: index)...]).trimmingCharacters(in: .whitespaces)
+                if value.hasPrefix("\"") && value.hasSuffix("\"") && value.count >= 2 {
+                    value = String(value.dropFirst().dropLast())
+                }
+                envVars[key] = value
+            }
+        }
+        return envVars
     }
 }

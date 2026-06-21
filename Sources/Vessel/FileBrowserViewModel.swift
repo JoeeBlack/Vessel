@@ -13,7 +13,7 @@ public struct FileItem: Identifiable, Hashable, Sendable {
 }
 
 @Observable
-public final class FileBrowserViewModel {
+public final class FileBrowserViewModel: @unchecked Sendable {
     public var currentPath: String = "/"
     public var files: [FileItem] = []
     public var isLoading: Bool = false

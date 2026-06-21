@@ -249,7 +249,7 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-public struct VesselImage: Identifiable, Codable, Hashable {
+public struct VesselImage: Identifiable, Codable, Hashable, Sendable {
     public let id: String
     public let repository: String
     public let tag: String

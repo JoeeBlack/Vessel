@@ -37,37 +37,39 @@ public class FileReader: Containerization.ReaderStream, @unchecked Sendable {
         self.url = url
     }
 
-    public func start(on output: @escaping (Data?, Error?, Bool) -> Void) {
-        Task {
-            do {
-                let handle = try FileHandle(forReadingFrom: url)
-                defer { try? handle.close() }
+    public func stream() -> AsyncStream<Data> {
+        return AsyncStream { continuation in
+            Task {
+                do {
+                    let handle = try FileHandle(forReadingFrom: url)
+                    defer { try? handle.close() }
 
-                while true {
-                    if #available(macOS 10.15.4, *) {
-                        if let data = try handle.read(upToCount: 8192) {
-                            if data.isEmpty {
-                                output(nil, nil, true)
-                                break
+                    while true {
+                        if #available(macOS 10.15.4, *) {
+                            if let data = try handle.read(upToCount: 8192) {
+                                if data.isEmpty {
+                                    continuation.finish()
+                                    break
+                                } else {
+                                    continuation.yield(data)
+                                }
                             } else {
-                                output(data, nil, false)
+                                continuation.finish()
+                                break
                             }
                         } else {
-                            output(nil, nil, true)
-                            break
-                        }
-                    } else {
-                        let data = handle.readData(ofLength: 8192)
-                        if data.isEmpty {
-                            output(nil, nil, true)
-                            break
-                        } else {
-                            output(data, nil, false)
+                            let data = handle.readData(ofLength: 8192)
+                            if data.isEmpty {
+                                continuation.finish()
+                                break
+                            } else {
+                                continuation.yield(data)
+                            }
                         }
                     }
+                } catch {
+                    continuation.finish()
                 }
-            } catch {
-                output(nil, error, true)
             }
         }
     }

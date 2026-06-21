@@ -1,8 +1,8 @@
 import SwiftUI
 
 @Observable
-public final class NetworkGraphModel {
-    public struct Node: Identifiable, Equatable {
+public final class NetworkGraphModel: @unchecked Sendable {
+    public struct Node: Identifiable, Equatable, Sendable {
         public let id: String
         public var name: String
         public let isNetwork: Bool
@@ -16,7 +16,7 @@ public final class NetworkGraphModel {
         }
     }
 
-    public struct Edge: Identifiable, Equatable {
+    public struct Edge: Identifiable, Equatable, Sendable {
         public let id: String
         public let source: String
         public let target: String

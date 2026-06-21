@@ -14,11 +14,13 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import Foundation
+
 /// The core error type for Containerization.
 ///
 /// Most API surfaces for the core container/process/agent types will
 /// return a ContainerizationError.
-public struct ContainerizationError: Swift.Error, Sendable {
+public struct ContainerizationError: Swift.Error, Sendable, LocalizedError {
     /// A code describing the error encountered.
     public var code: Code
     /// A description of the error.
@@ -74,6 +76,10 @@ extension ContainerizationError: CustomStringConvertible {
             return "\(self.code): \"\(self.message)\""
         }
         return "\(self.code): \"\(self.message)\" (cause: \"\(cause)\")"
+    }
+    
+    public var errorDescription: String? {
+        return self.description
     }
 }
 

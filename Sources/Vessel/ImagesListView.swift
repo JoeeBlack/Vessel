@@ -12,7 +12,7 @@ enum ScanStatus: Equatable {
 
 
 @Observable
-class ImagesViewModel {
+class ImagesViewModel: @unchecked Sendable {
     var images: [VesselImage] = []
     var pullQuery: String = ""
     var isPulling: Bool = false
@@ -57,9 +57,9 @@ class ImagesViewModel {
     }
 
     func pullImage() {
-        guard !viewModel.pullQuery.isEmpty else { return }
-        isPulling = true
-        viewModel.pullProgress = 0.0
+        guard !self.pullQuery.isEmpty else { return }
+        self.isPulling = true
+        self.pullProgress = 0.0
 
         let query = normalize(reference: pullQuery)
         pullTask = Task {
@@ -70,7 +70,7 @@ class ImagesViewModel {
                     }
                 }
                 if !Task.isCancelled {
-                    await viewModel.fetchImages()
+                    await self.fetchImages()
                 }
             } catch {
                 if !Task.isCancelled {
@@ -81,7 +81,7 @@ class ImagesViewModel {
                 await MainActor.run {
                     self.isPulling = false
                     self.pullQuery = ""
-                    self.viewModel.pullProgress = 0.0
+                    self.pullProgress = 0.0
                 }
             }
         }
@@ -93,7 +93,7 @@ class ImagesViewModel {
         Task {
             do {
                 try await daemon.deleteImage(reference: ref)
-                await viewModel.fetchImages()
+                await self.fetchImages()
             } catch {
                 print("Failed to delete image: \(error)")
             }
@@ -102,7 +102,7 @@ class ImagesViewModel {
 
     func scanImage(_ image: VesselImage) {
         let id = image.id
-        viewModel.scanStatuses[id] = .scanning
+        self.scanStatuses[id] = .scanning
         Task.detached {
             do {
                 let rawRef = "\(image.repository):\(image.tag)"
@@ -136,19 +136,19 @@ class ImagesViewModel {
                 connection.invalidate()
 
                 await MainActor.run {
-                    self.viewModel.scanResults[id] = vulns
+                    self.scanResults[id] = vulns
                     if vulns.isEmpty {
-                        self.viewModel.scanStatuses[id] = .safe
+                        self.scanStatuses[id] = .safe
                     } else {
                         let critical = vulns.filter { $0.severity.uppercased() == "CRITICAL" }.count
                         let high = vulns.filter { $0.severity.uppercased() == "HIGH" }.count
                         let other = vulns.count - critical - high
-                        self.viewModel.scanStatuses[id] = .vulnerable(critical: critical, high: high, other: other)
+                        self.scanStatuses[id] = .vulnerable(critical: critical, high: high, other: other)
                     }
                 }
             } catch {
                 await MainActor.run {
-                    self.viewModel.scanStatuses[id] = .error(error.localizedDescription)
+                    self.scanStatuses[id] = .error(error.localizedDescription)
                 }
             }
         }
@@ -226,8 +226,8 @@ struct ImagesListView: View {
                         
                         ForEach(popularImages, id: \.self) { img in
                             Button(action: {
-                                pullQuery = img
-                                pullImage()
+                                viewModel.pullQuery = img
+                                viewModel.pullImage()
                             }) {
                                 Text(img)
                                     .font(.system(size: 12, design: .monospaced))
@@ -255,7 +255,7 @@ struct ImagesListView: View {
                     if viewModel.isPulling {
                         PullingImageCardView(query: viewModel.pullQuery, progress: viewModel.pullProgress) {
                             viewModel.pullTask?.cancel()
-                            isPulling = false
+                            viewModel.isPulling = false
                             viewModel.pullProgress = 0.0
                         }
                     }
@@ -289,62 +289,6 @@ struct ImagesListView: View {
             await viewModel.fetchImages()
         }
     }
-    
-    private func scanImage(_ image: VesselImage) {
-        let id = image.id
-        viewModel.scanStatuses[id] = .scanning
-        Task.detached {
-            do {
-                let rawRef = "\(image.repository):\(image.tag)"
-                let ref = await MainActor.run { normalize(reference: rawRef) }
-
-                // Let's create an XPC connection locally.
-                let connection = NSXPCConnection(machServiceName: "com.vessel.cctl.xpc")
-                connection.remoteObjectInterface = NSXPCInterface(with: VesselXPCProtocol.self)
-                connection.resume()
-
-                guard let proxy = connection.remoteObjectProxy as? VesselXPCProtocol else {
-                    throw NSError(domain: "ImagesListView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to get XPC proxy"])
-                }
-
-                let vulns: [TrivyVulnerability] = try await withCheckedThrowingContinuation { continuation in
-                    proxy.scanImage(reference: ref) { data, error in
-                        if let error = error {
-                            continuation.resume(throwing: error)
-                        } else if let data = data {
-                            do {
-                                let decoded = try JSONDecoder().decode([TrivyVulnerability].self, from: data)
-                                continuation.resume(returning: decoded)
-                            } catch {
-                                continuation.resume(throwing: error)
-                            }
-                        } else {
-                            continuation.resume(throwing: NSError(domain: "ImagesListView", code: 2, userInfo: [NSLocalizedDescriptionKey: "No data from XPC"]))
-                        }
-                    }
-                }
-
-                connection.invalidate()
-
-                await MainActor.run {
-                    viewModel.scanResults[id] = vulns
-                    if vulns.isEmpty {
-                        viewModel.scanStatuses[id] = .safe
-                    } else {
-                        let critical = vulns.filter { $0.severity.uppercased() == "CRITICAL" }.count
-                        let high = vulns.filter { $0.severity.uppercased() == "HIGH" }.count
-                        let other = vulns.count - critical - high
-                        viewModel.scanStatuses[id] = .vulnerable(critical: critical, high: high, other: other)
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    viewModel.scanStatuses[id] = .error(error.localizedDescription)
-                }
-            }
-        }
-    }
-
 }
 
 struct ImageCardView: View {
