@@ -117,6 +117,8 @@ extension ImageStore {
                     MediaTypes.layoutHeader, MediaTypes.emptyJSON:
                     continue
                 default:
+                    // Explicitly handle other content types as requested
+                    print("Warning: Unsupported media type \(mediaType) encountered in walk")
                     throw ContainerizationError(.unsupported, message: "Unsupported media type: \(mediaType)")
                 }
             }
