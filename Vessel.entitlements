@@ -12,8 +12,6 @@
     <true/>
     <key>com.apple.security.network.server</key>
     <true/>
-    <key>com.apple.security.get-task-allow</key>
-    <true/>
     <key>com.apple.security.virtualization</key>
     <true/>
 </dict>
