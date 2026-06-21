@@ -29,7 +29,7 @@ let log = {
 
 @main
 struct Application: AsyncParsableCommand {
-    static let keychainID = "com.apple.containerization"
+    static let keychainID = Bundle.main.bundleIdentifier ?? "com.apple.containerization"
     static let appRoot: URL = {
         FileManager.default.urls(
             for: .applicationSupportDirectory,
