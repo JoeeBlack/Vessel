@@ -31,10 +31,6 @@ public struct SimpleNATNetwork {
             gateway: "192.168.64.1"
         )
     }
-
-    public mutating func releaseInterface(_ id: String) throws {
-        // No-op
-    }
 }
 
 final class SafeNetServiceBox: @unchecked Sendable {
