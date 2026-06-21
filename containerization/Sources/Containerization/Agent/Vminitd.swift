@@ -56,10 +56,8 @@ extension Vminitd: VirtualMachineAgent {
         try await setenv(key: "PATH", value: Self.defaultPath)
 
         let mounts: [ContainerizationOCI.Mount] = [
-            .init(type: "sysfs", source: "sysfs", destination: "/sys"),
             .init(type: "tmpfs", source: "tmpfs", destination: "/tmp"),
             .init(type: "devpts", source: "devpts", destination: "/dev/pts", options: ["gid=5", "mode=620", "ptmxmode=666"]),
-            .init(type: "cgroup2", source: "none", destination: "/sys/fs/cgroup"),
         ]
         for mount in mounts {
             try await self.mount(mount)
@@ -121,7 +119,10 @@ extension Vminitd: VirtualMachineAgent {
                 if let containerID {
                     $0.containerID = containerID
                 }
-                $0.configuration = try enc.encode(configuration)
+                let configData = try enc.encode(configuration)
+                let tempPath = NSTemporaryDirectory() + "vessel_spec_\(id).json"
+                try? configData.write(to: URL(fileURLWithPath: tempPath))
+                $0.configuration = configData
             })
     }
 

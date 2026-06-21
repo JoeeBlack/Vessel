@@ -37,6 +37,11 @@ public class FileReader: Containerization.ReaderStream, @unchecked Sendable {
         self.url = url
     }
 
+    public func read() async throws -> Data? {
+        let data = try Data(contentsOf: url)
+        return data
+    }
+
     public func stream() -> AsyncStream<Data> {
         return AsyncStream { continuation in
             Task {
@@ -70,6 +75,20 @@ public class FileReader: Containerization.ReaderStream, @unchecked Sendable {
                 } catch {
                     continuation.finish()
                 }
+            }
+        }
+    }
+}
+
+public class IdleStreamReader: Containerization.ReaderStream, @unchecked Sendable {
+    public init() {}
+    public func stream() -> AsyncStream<Data> {
+        return AsyncStream { continuation in
+            Task {
+                do {
+                    try await Task.sleep(nanoseconds: 1_000_000_000 * 60 * 60 * 24 * 365)
+                } catch {}
+                continuation.finish()
             }
         }
     }

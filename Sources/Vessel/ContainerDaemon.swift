@@ -8,6 +8,7 @@ import ContainerizationError
 import Virtualization
 import Security
 import LocalAuthentication
+import os.log
 
 public struct SimpleNATNetwork {
     private var nextIP: UInt32 = 200
@@ -396,7 +397,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             if container.rosetta {
                 // Manually run binfmt_misc registration in guest VM
                 let binfmtConfig = ContainerizationOCI.Process(
-                    args: ["sh", "-c", "mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc; echo ':x86_64:M::\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x3e\\x00:\\xff\\xff\\xff\\xff\\xff\\xfe\\xfe\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff\\xff:/run/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register"],
+                    args: ["/bin/sh", "-c", "mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc; echo ':x86_64:M::\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x3e\\x00:\\xff\\xff\\xff\\xff\\xff\\xfe\\xfe\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff\\xff:/run/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register"],
                     terminal: false
                 )
                 if let proc = try? await container.exec("setup-binfmt", configuration: binfmtConfig) {
@@ -480,19 +481,8 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
 
         @Sendable func debugLog(_ msg: String) {
-            let logFile = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/daemon.log")
-            let text = "[\(Date())] \(msg)\n"
-            if let data = text.data(using: .utf8) {
-                if let handle = try? FileHandle(forWritingTo: logFile) {
-                    handle.seekToEndOfFile()
-                    handle.write(data)
-                    handle.closeFile()
-                } else {
-                    // Security Enhancement: Use atomic writes and restrict permissions for log files
-                    try? data.write(to: logFile, options: [.atomic])
-                    try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: logFile.path)
-                }
-            }
+            os_log("%{public}@", log: OSLog(subsystem: "com.vessel", category: "ContainerDaemon"), type: .debug, msg)
+            print("[\(Date())] \(msg)")
         }
         
         debugLog("start() called for \(containerId) with \(imageReference)")
@@ -537,9 +527,9 @@ public final class ContainerDaemon: @unchecked Sendable {
         let vmm = VZVirtualMachineManager(
             kernel: kernel,
             initialFilesystem: initfs,
-            bootlog: nil
+            bootlog: NSTemporaryDirectory() + "vessel_vm_boot_\(containerId).log"
         )
-        debugLog("VZVirtualMachineManager initialized")
+        debugLog("VZVirtualMachineManager initialized. Bootlog at: \(NSTemporaryDirectory() + "vessel_vm_boot_\(containerId).log")")
         
         var logContinuation: AsyncStream<String>.Continuation!
         let stream = AsyncStream<String> { cont in
@@ -588,6 +578,8 @@ public final class ContainerDaemon: @unchecked Sendable {
             container.environment.append(contentsOf: resolvedServiceEnv)
         }
         
+        container.terminal = true
+        
         for volume in volumes {
             // Check for restricted host paths to prevent container escapes
             let resolvedHostPath = URL(fileURLWithPath: volume.host).resolvingSymlinksInPath().path
@@ -600,22 +592,32 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
         
         let stdoutWriter = LogWriter(prefix: "STDOUT", continuation: logContinuation)
-        let stderrWriter = LogWriter(prefix: "STDERR", continuation: logContinuation)
         container.stdout = stdoutWriter
-        container.stderr = stderrWriter
+        
+        if !container.terminal {
+            let stderrWriter = LogWriter(prefix: "STDERR", continuation: logContinuation)
+            container.stderr = stderrWriter
+        } else {
+            container.stdin = IdleStreamReader()
+        }
         
         debugLog("Calling container.create()...")
         try await Task.detached {
-            try await container.create()
-            debugLog("Calling container.start()...")
-            try await container.start()
-            debugLog("Container started successfully!")
+            do {
+                try await container.create()
+                debugLog("Calling container.start()...")
+                try await container.start()
+                debugLog("Container started successfully!")
+            } catch {
+                debugLog("Error in container task: \(error)")
+                throw error
+            }
         }.value
         
         if container.rosetta {
             // Manually run binfmt_misc registration in guest VM
             let binfmtConfig = ContainerizationOCI.Process(
-                args: ["sh", "-c", "mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc; echo ':x86_64:M::\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x3e\\x00:\\xff\\xff\\xff\\xff\\xff\\xfe\\xfe\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff\\xff:/run/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register"],
+                args: ["/bin/sh", "-c", "mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc; echo ':x86_64:M::\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x3e\\x00:\\xff\\xff\\xff\\xff\\xff\\xfe\\xfe\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff\\xff:/run/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register"],
                 terminal: false
             )
             if let proc = try? await container.exec("setup-binfmt", configuration: binfmtConfig) {
@@ -684,19 +686,8 @@ public final class ContainerDaemon: @unchecked Sendable {
     
     public func start(containerId: String) async throws {
         @Sendable func debugLog(_ msg: String) {
-            let logFile = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/daemon.log")
-            let text = "[\(Date())] \(msg)\n"
-            if let data = text.data(using: .utf8) {
-                if let handle = try? FileHandle(forWritingTo: logFile) {
-                    handle.seekToEndOfFile()
-                    handle.write(data)
-                    handle.closeFile()
-                } else {
-                    // Security Enhancement: Use atomic writes and restrict permissions for log files
-                    try? data.write(to: logFile, options: [.atomic])
-                    try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: logFile.path)
-                }
-            }
+            os_log("%{public}@", log: OSLog(subsystem: "com.vessel", category: "ContainerDaemon"), type: .debug, msg)
+            print("[\(Date())] \(msg)")
         }
         
         debugLog("start(containerId:) called for \(containerId)")
@@ -775,8 +766,8 @@ public final class ContainerDaemon: @unchecked Sendable {
                 logContinuation = cont
             }
             
-            let containerRoot = storePath.appendingPathComponent("containers").appendingPathComponent(containerId)
-            let fsPath = containerRoot.appendingPathComponent("rootfs.ext4")
+            let containerDir = storePath.appendingPathComponent("containers")
+            let fsPath = containerDir.appendingPathComponent("\(containerId)-rootfs.ext4")
             let rootfs = Containerization.Mount.block(format: "ext4", source: fsPath.path, destination: "/", options: [])
             
             let container = LinuxContainer(containerId, rootfs: rootfs, vmm: vmm)
@@ -851,7 +842,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         if linuxContainer.rosetta {
             // Manually run binfmt_misc registration in guest VM
             let binfmtConfig = ContainerizationOCI.Process(
-                args: ["sh", "-c", "mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc; echo ':x86_64:M::\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x3e\\x00:\\xff\\xff\\xff\\xff\\xff\\xfe\\xfe\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff\\xff:/run/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register"],
+                args: ["/bin/sh", "-c", "mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc; echo ':x86_64:M::\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x3e\\x00:\\xff\\xff\\xff\\xff\\xff\\xfe\\xfe\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff\\xff:/run/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register"],
                 terminal: false
             )
             if let proc = try? await linuxContainer.exec("setup-binfmt", configuration: binfmtConfig) {
@@ -908,7 +899,7 @@ public final class ContainerDaemon: @unchecked Sendable {
 
     public func uploadFile(containerId: String, from sourceURL: URL, to destinationPath: String) async throws {
         let reader = FileReader(url: sourceURL)
-        let process = try await exec(containerId: containerId, args: ["sh", "-c", "cat > \"$1\"", "--", destinationPath], stdin: reader)
+        let process = try await exec(containerId: containerId, args: ["/bin/sh", "-c", "cat > \"$1\"", "--", destinationPath], stdin: reader)
         _ = try await process.wait()
     }
 
@@ -962,7 +953,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         let (stream, continuation) = AsyncStream<StatsModel>.makeStream()
         
         let config = ContainerizationOCI.Process(
-            args: ["sh", "-c", "while true; do cat /proc/stat; echo '---MEM---'; cat /proc/meminfo; echo '---LOAD---'; cat /proc/loadavg; echo '---UPTIME---'; cat /proc/uptime; echo '---NET---'; cat /proc/net/dev; echo '---END---'; sleep 1; done"],
+            args: ["/bin/sh", "-c", "while true; do cat /proc/stat; echo '---MEM---'; cat /proc/meminfo; echo '---LOAD---'; cat /proc/loadavg; echo '---UPTIME---'; cat /proc/uptime; echo '---NET---'; cat /proc/net/dev; echo '---END---'; sleep 1; done"],
             terminal: false
         )
         
@@ -1117,8 +1108,9 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         }
         
         let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
-        let containerRoot = storePath.appendingPathComponent("containers").appendingPathComponent(containerId)
-        try? FileManager.default.removeItem(at: containerRoot)
+        let containerDir = storePath.appendingPathComponent("containers")
+        let fsPath = containerDir.appendingPathComponent("\(containerId)-rootfs.ext4")
+        try? FileManager.default.removeItem(at: fsPath)
         activeContainers.removeValue(forKey: containerId)
         saveContainers()
     }
