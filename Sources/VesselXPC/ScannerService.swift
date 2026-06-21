@@ -103,7 +103,7 @@ public actor ScannerService {
 
         let process = Process()
         process.executableURL = trivyURL
-        process.arguments = ["image", "--format", "json", "--quiet", reference]
+        process.arguments = ["image", "--format", "json", "--quiet", "--", reference]
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
