@@ -186,6 +186,7 @@ struct PodCardView: View {
                 }
             }
         )
+        .compositingGroup()
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)

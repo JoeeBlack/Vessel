@@ -190,7 +190,7 @@ struct ContainerCardView: View {
     var animation: Namespace.ID
     let container: VesselContainer
     let isLoading: Bool
-    var viewModel: ContainerViewModel
+    @Bindable var viewModel: ContainerViewModel
     let onStart: () -> Void
     let onStop: () -> Void
     var onForceStop: (() -> Void)? = nil
@@ -313,7 +313,7 @@ struct ContainerCardView: View {
                             .foregroundColor(AppTheme.textSecondary)
                         Spacer()
                         HStack(spacing: 4) {
-                            ForEach(forwards, id: \.hostPort) { pf in
+                            ForEach(forwards) { pf in
                                 PortForwardLinkView(pf: pf)
                             }
                         }
@@ -436,7 +436,7 @@ struct ContainerCardView: View {
                             .frame(width: geometry.size.width)
                             .offset(x: isAnimatingOverlay ? geometry.size.width : -geometry.size.width)
                             .onAppear {
-                                withAnimation(Animation.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                                     isAnimatingOverlay = true
                                 }
                             }
@@ -444,6 +444,7 @@ struct ContainerCardView: View {
                 }
             }
         )
+        .compositingGroup()
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
