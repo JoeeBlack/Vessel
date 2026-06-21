@@ -40,3 +40,7 @@
 ## 2026-06-19 - Avoid Repeated UserDefaults Decoding
 **Learning:** In Swift, repeatedly accessing and decoding complex collections (like dictionaries) directly from `UserDefaults` in high-frequency access paths incurs significant disk I/O and decoding overhead.
 **Action:** Use a thread-safe in-memory cache synchronized with `UserDefaults` to resolve this.
+
+## 2024-05-24 - Concurrent Await in Loops
+**Learning:** When performing asynchronous I/O or network requests on a collection of items (such as pausing or resuming multiple virtual machines/containers), doing it sequentially within a standard `for` loop is an anti-pattern. This blocks the caller for the total time of all operations combined (O(N) latency). By refactoring this code to use Swift's structured concurrency `TaskGroup`, all operations are initiated concurrently, dropping the total blocking time to only the duration of the single longest operation (O(1) latency scaled by available threads).
+**Action:** Always use `withTaskGroup` or `withThrowingTaskGroup` to execute independent async operations concurrently when iterating over collections, significantly improving performance and reducing latency.
