@@ -40,3 +40,6 @@
 ## 2026-06-19 - Avoid Repeated UserDefaults Decoding
 **Learning:** In Swift, repeatedly accessing and decoding complex collections (like dictionaries) directly from `UserDefaults` in high-frequency access paths incurs significant disk I/O and decoding overhead.
 **Action:** Use a thread-safe in-memory cache synchronized with `UserDefaults` to resolve this.
+
+### 2026-02-20
+* In Swift codebases like Vessel, avoid executing asynchronous I/O operations (such as container start/stop/resume routines) sequentially inside a loop. Instead, wrap them in a `withTaskGroup` or `withThrowingTaskGroup` to process them concurrently, significantly reducing execution latency.
