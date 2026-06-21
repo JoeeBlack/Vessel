@@ -526,7 +526,7 @@ struct PullingImageCardView: View {
                         .frame(width: geometry.size.width)
                         .offset(x: isAnimatingOverlay ? geometry.size.width : -geometry.size.width)
                         .onAppear {
-                            withAnimation(Animation.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                                 isAnimatingOverlay = true
                             }
                         }
@@ -534,6 +534,7 @@ struct PullingImageCardView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         )
+        .compositingGroup()
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)

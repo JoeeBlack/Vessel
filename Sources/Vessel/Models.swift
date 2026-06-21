@@ -44,7 +44,8 @@ public struct VesselVolume: Codable, Hashable, Sendable {
     }
 }
 
-public struct VesselPortForward: Codable, Hashable, Sendable {
+public struct VesselPortForward: Codable, Hashable, Sendable, Identifiable {
+    public var id: Int { hostPort }
     public let hostPort: Int
     public let containerPort: Int
 

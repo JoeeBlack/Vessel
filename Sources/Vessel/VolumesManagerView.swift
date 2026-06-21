@@ -9,7 +9,7 @@ struct VolumesManagerView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedVolume) {
-                ForEach(viewModel.workloads, id: \VesselWorkload.id) { workload in
+                ForEach(viewModel.workloads) { workload in
                     let volumes = getVolumes(for: workload)
                     if !volumes.isEmpty {
                         Section(header: Text(workload.name)) {

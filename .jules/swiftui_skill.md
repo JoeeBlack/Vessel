@@ -1,0 +1,1 @@
+Learned the importance of applying strict SwiftUI rules based on SwiftUI-Agent-Skill, primarily using stable element ids in ForEach instead of offset or random variables, enforcing privacy for @State properties, and correctly ordering view modifiers like .compositingGroup() before .clipShape() to avoid rendering glitches with glassmorphism UI.

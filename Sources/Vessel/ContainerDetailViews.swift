@@ -290,7 +290,7 @@ struct ContainerNetworkCardView: View {
                             .foregroundColor(AppTheme.textSecondary)
                         Spacer()
                         HStack(spacing: 8) {
-                            ForEach(forwards, id: \.hostPort) { pf in
+                            ForEach(forwards) { pf in
                                 if let url = URL(string: "http://localhost:\(pf.hostPort)") {
                                     Link("\(pf.hostPort):\(pf.containerPort)", destination: url)
                                         .font(.system(size: 13, design: .monospaced))
