@@ -1002,19 +1002,29 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
 
     public func pauseAll() async throws {
         // Pause all running linux containers
-        for (id, active) in activeContainers {
-            if let linux = active.linux, active.vessel.status == .running {
-                try? await linux.pause()
-
-                let vessel = active.vessel
-                let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .paused, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
-                activeContainers[id] = ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders, netService: active.netService)
+        await withTaskGroup(of: (String, ActiveContainer)?.self) { group in
+            for (id, active) in activeContainers {
+                if let linux = active.linux, active.vessel.status == .running {
+                    group.addTask {
+                        try? await linux.pause()
+                        let vessel = active.vessel
+                        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .paused, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
+                        return (id, ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders, netService: active.netService))
+                    }
+                }
+            }
+            for await result in group {
+                if let (id, active) = result {
+                    activeContainers[id] = active
+                }
             }
         }
         for (id, activePod) in activePods {
             if activePod.pod.status == .running {
-                for (_, linux) in activePod.linuxContainers {
-                    try? await linux.pause()
+                await withTaskGroup(of: Void.self) { group in
+                    for (_, linux) in activePod.linuxContainers {
+                        group.addTask { try? await linux.pause() }
+                    }
                 }
                 let pod = activePod.pod
                 let updatedContainers = pod.containers.map {
@@ -1032,19 +1042,29 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
 
     public func resumeAll() async throws {
         // Resume all paused linux containers
-        for (id, active) in activeContainers {
-            if let linux = active.linux, active.vessel.status == .paused {
-                try? await linux.resume()
-
-                let vessel = active.vessel
-                let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
-                activeContainers[id] = ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders, netService: active.netService)
+        await withTaskGroup(of: (String, ActiveContainer)?.self) { group in
+            for (id, active) in activeContainers {
+                if let linux = active.linux, active.vessel.status == .paused {
+                    group.addTask {
+                        try? await linux.resume()
+                        let vessel = active.vessel
+                        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
+                        return (id, ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders, netService: active.netService))
+                    }
+                }
+            }
+            for await result in group {
+                if let (id, active) = result {
+                    activeContainers[id] = active
+                }
             }
         }
         for (id, activePod) in activePods {
             if activePod.pod.status == .paused {
-                for (_, linux) in activePod.linuxContainers {
-                    try? await linux.resume()
+                await withTaskGroup(of: Void.self) { group in
+                    for (_, linux) in activePod.linuxContainers {
+                        group.addTask { try? await linux.resume() }
+                    }
                 }
                 let pod = activePod.pod
                 let updatedContainers = pod.containers.map {
