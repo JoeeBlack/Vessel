@@ -388,8 +388,10 @@ public final class ContainerDaemon: @unchecked Sendable {
             // when container.rosetta = true and sets up binfmt_misc. However, to explicitly fulfill
             // local system setup, we make sure it's enabled here.
 
-            try await container.create()
-            try await container.start()
+            try await Task.detached {
+                try await container.create()
+                try await container.start()
+            }.value
             
             if container.rosetta {
                 // Manually run binfmt_misc registration in guest VM
@@ -603,7 +605,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         container.stderr = stderrWriter
         
         debugLog("Calling container.create()...")
-        try await Task { @MainActor in
+        try await Task.detached {
             try await container.create()
             debugLog("Calling container.start()...")
             try await container.start()
@@ -829,7 +831,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             container.stdout = stdoutWriter
             container.stderr = stderrWriter
             debugLog("Calling container.create()...")
-            try await Task { @MainActor in
+            try await Task.detached {
                 try await container.create()
             }.value
             linux = container
@@ -841,7 +843,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
 
         debugLog("Calling linuxContainer.start()...")
-        try await Task { @MainActor in
+        try await Task.detached {
             try await linuxContainer.start()
             debugLog("linuxContainer.start() succeeded!")
         }.value
