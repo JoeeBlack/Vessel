@@ -233,8 +233,11 @@ struct WakeProxy: ParsableCommand {
         group.enter()
         stdinChannel.read(offset: 0, length: Int.max, queue: globalQueue) { done, data, error in
             if let data = data, !data.isEmpty {
-                let bytes = [UInt8](data)
-                _ = send(sockfd, bytes, bytes.count, 0)
+                data.regions.forEach { region in
+                    region.withUnsafeBytes { ptr in
+                        _ = send(sockfd, ptr.baseAddress, ptr.count, 0)
+                    }
+                }
             }
             if done || error != 0 {
                 stdinChannel.close()
@@ -251,8 +254,11 @@ struct WakeProxy: ParsableCommand {
         group.enter()
         socketChannel.read(offset: 0, length: Int.max, queue: globalQueue) { done, data, error in
             if let data = data, !data.isEmpty {
-                let bytes = [UInt8](data)
-                _ = write(STDOUT_FILENO, bytes, bytes.count)
+                data.regions.forEach { region in
+                    region.withUnsafeBytes { ptr in
+                        _ = write(STDOUT_FILENO, ptr.baseAddress, ptr.count)
+                    }
+                }
             }
             if done || error != 0 {
                 socketChannel.close()

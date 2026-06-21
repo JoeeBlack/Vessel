@@ -15,7 +15,7 @@ public class BookmarkManager: @unchecked Sendable {
         restoreAccess()
     }
 
-    public func resolveAndAccess(path: String) throws {
+    public func resolveAndAccess(path: String) async throws {
         let expandedPath = NSString(string: path).expandingTildeInPath
         let resolvedPath = URL(fileURLWithPath: expandedPath).resolvingSymlinksInPath().path
         let url = URL(fileURLWithPath: resolvedPath)
@@ -26,7 +26,7 @@ public class BookmarkManager: @unchecked Sendable {
         }
 
         // Prompt the user for access
-        try requestAccessOnMainThread(for: url)
+        try await requestAccessOnMainThread(for: url)
     }
 
     private func hasAccess(to url: URL) -> Bool {
@@ -72,7 +72,7 @@ public class BookmarkManager: @unchecked Sendable {
         return false
     }
 
-    private func requestAccessOnMainThread(for url: URL) throws {
+    private func requestAccessOnMainThread(for url: URL) async throws {
         let panelAction: @MainActor () -> Error? = {
             let panel = NSOpenPanel()
             panel.message = "Vessel needs access to the folder '\(url.path)' to mount it into the container."
@@ -106,17 +106,8 @@ public class BookmarkManager: @unchecked Sendable {
             }
         }
 
-        var userError: Error?
-        if Thread.isMainThread {
-            userError = MainActor.assumeIsolated {
-                panelAction()
-            }
-        } else {
-            userError = DispatchQueue.main.sync {
-                MainActor.assumeIsolated {
-                    panelAction()
-                }
-            }
+        let userError = await MainActor.run {
+            panelAction()
         }
 
         if let error = userError {
