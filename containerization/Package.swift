@@ -21,8 +21,6 @@ import CompilerPluginSupport
 import Foundation
 import PackageDescription
 
-let settings: [SwiftSetting] = []
-
 let package = Package(
     name: "containerization",
     platforms: [.macOS("15")],
@@ -71,8 +69,7 @@ let package = Package(
             ],
             exclude: [
                 "../Containerization/SandboxContext/SandboxContext.proto"
-            ],
-            swiftSettings: settings
+            ]
         ),
         .executableTarget(
             name: "cctl",
