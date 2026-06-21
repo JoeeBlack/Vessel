@@ -1096,8 +1096,12 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
     
     public func delete(containerId: String) async throws {
         if let activePod = activePods[containerId] {
-            for (_, container) in activePod.linuxContainers {
-                try? await container.stop()
+            await withTaskGroup(of: Void.self) { group in
+                for (_, container) in activePod.linuxContainers {
+                    group.addTask {
+                        try? await container.stop()
+                    }
+                }
             }
             activePods.removeValue(forKey: containerId)
             savePods()
