@@ -23,6 +23,7 @@
         <string>com.apple.linkd.registry</string>
         <string>com.apple.linkd.extension</string>
     </array>
-
+    <key>com.apple.security.virtualization</key>
+    <true/>
 </dict>
 </plist>
