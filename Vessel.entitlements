@@ -21,14 +21,13 @@
     <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
     <array>
         <string>com.vessel.cctl.xpc</string>
-    </array>
-    <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
-    <array>
         <string>com.apple.linkd.autoShortcut</string>
         <string>com.apple.linkd.registry</string>
         <string>com.apple.linkd.extension</string>
     </array>
     <key>com.apple.developer.siri</key>
+    <true/>
+    <key>com.apple.security.virtualization</key>
     <true/>
 </dict>
 </plist>
