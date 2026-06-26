@@ -25,7 +25,10 @@ let package = Package(
                 .executableTarget(
             name: "vesseld",
             dependencies: [
-                "VesselXPC"
+                "VesselXPC",
+                .product(name: "Containerization", package: "containerization"),
+                .product(name: "Yams", package: "Yams"),
+                .product(name: "SystemPackage", package: "swift-system")
             ],
             path: "Sources/vesseld",
             swiftSettings: [

@@ -1,4 +1,5 @@
 import Foundation
+import VesselXPC
 import Containerization
 import ContainerizationExtras
 import ContainerizationOS
