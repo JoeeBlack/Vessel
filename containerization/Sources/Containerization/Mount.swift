@@ -210,8 +210,22 @@ extension VZDiskImageStorageDeviceAttachment {
                 )
             }
         }
+        let fileURL = URL(filePath: mount.source)
+        if fileURL.pathExtension.localizedCaseInsensitiveCompare("raw") == .orderedSame {
+            // macOS 15 bug: User data check fails on RAW images.
+            do {
+                return try VZDiskImageStorageDeviceAttachment(
+                    url: fileURL,
+                    readOnly: mount.readonly,
+                    cachingMode: cachingMode,
+                    synchronizationMode: synchronizationMode
+                )
+            } catch let error as NSError where error.domain == "DiskImages2" && error.code == 45 {
+                throw ContainerizationError(.invalidArgument, message: "RAW images are not supported with user data")
+            }
+        }
         return try VZDiskImageStorageDeviceAttachment(
-            url: URL(filePath: mount.source),
+            url: fileURL,
             readOnly: mount.readonly,
             cachingMode: cachingMode,
             synchronizationMode: synchronizationMode
