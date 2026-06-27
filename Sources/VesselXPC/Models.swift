@@ -89,7 +89,7 @@ public struct VesselPod: Identifiable, Codable, Hashable, Sendable {
 
 
     public func encode(to encoder: Encoder) throws {
-        public var container = encoder.container(keyedBy: CodingKeys.self)
+        var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encode(status, forKey: .status)
@@ -111,21 +111,21 @@ public struct VesselPod: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-public enum VesselWorkload: Identifiable, Hashable, Sendable {
+public enum VesselWorkload: Identifiable, Hashable, Sendable, Codable {
     case container(VesselContainer)
     case pod(VesselPod)
     
     public var id: String {
         switch self {
-        case .container(public let c): return c.id
-        case .pod(public let p): return p.id
+        case .container(let c): return c.id
+        case .pod(let p): return p.id
         }
     }
     
     public var name: String {
         switch self {
-        case .container(public let c): return c.name
-        case .pod(public let p): return p.name
+        case .container(let c): return c.name
+        case .pod(let p): return p.name
         }
     }
 }
@@ -194,7 +194,7 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
 
 
     public func encode(to encoder: Encoder) throws {
-        public var container = encoder.container(keyedBy: CodingKeys.self)
+        var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encode(subtitle, forKey: .subtitle)
@@ -245,7 +245,7 @@ public struct VesselContainer: Identifiable, Codable, Hashable, Sendable {
         self.portForwards = try container.decodeIfPresent([VesselPortForward].self, forKey: .portForwards) ?? []
         self.domain = try container.decodeIfPresent(VesselDomain.self, forKey: .domain) ?? .generic
 
-        public let networkingEnabled = try container.decodeIfPresent(Bool.self, forKey: .networkingEnabled) ?? true
+        let networkingEnabled = try container.decodeIfPresent(Bool.self, forKey: .networkingEnabled) ?? true
         self.networkName = try container.decodeIfPresent(String.self, forKey: .networkName) ?? (networkingEnabled ? "vessel-default" : "none")
     }
 }

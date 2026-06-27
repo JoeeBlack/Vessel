@@ -1,3 +1,4 @@
+import VesselXPC
 import SwiftUI
 import Containerization
 import ContainerizationOCI
@@ -52,8 +53,11 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             NavigationSplitView {
-            sidebar
-        } detail: {
+                SidebarView(
+                    selectedSidebarItem: $selectedSidebarItem,
+                    selectedContainerId: $selectedContainerId
+                )
+            } detail: {
             ZStack(alignment: .top) {
                 AppTheme.mainBackgroundGradient
                     .ignoresSafeArea()
@@ -198,7 +202,12 @@ struct ContentView: View {
             
             // Installation Overlay
             if !isFrameworkInstalled {
-                installOverlay
+                InstallOverlayView(
+                    isInstalling: isInstalling,
+                    installProgress: installProgress,
+                    installStatusMessage: installStatusMessage,
+                    onInstall: startInstallation
+                )
             }
         }
         .sheet(isPresented: $showingCreateContainer) {
@@ -242,120 +251,7 @@ struct ContentView: View {
         }
     }
     
-    @ViewBuilder
-    private var sidebar: some View {
-        // Sidebar Customization
-        VStack(alignment: .leading, spacing: 0) {
-            // Header (Vessel Logo)
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(AppTheme.accentBlue)
-                        .frame(width: 40, height: 40)
-                    Image(systemName: "cube.transparent")
-                        .foregroundColor(.white)
-                        .font(.system(size: 20))
-                }
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Vessel")
-                        .font(.system(size: 24, weight: .medium))
-                        .fontWeight(.semibold)
-                        .foregroundColor(AppTheme.accentBlue)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 24)
-            
-            Divider()
-                .background(AppTheme.cardBorder)
-            
-            // Menu Items
-            ScrollView {
-                VStack(spacing: 8) {
-                    ForEach(SidebarItem.allCases) { item in
-                        Button(action: {
-                            selectedSidebarItem = item
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedContainerId = nil } // reset selection
-                        }) {
-                            HStack(spacing: 12) {
-                                Image(systemName: item.icon)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
-                                    .frame(width: 24)
-                                
-                                Text(item.rawValue)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
-                                
-                                Spacer()
-                            }
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(selectedSidebarItem == item ? AppTheme.accentBlue.opacity(0.05) : Color.clear)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 12)
-                    }
-                }
-                .padding(.top, 24)
-            }
-            Spacer()
-        }
-        .background(Material.thin)
-        .background(AppTheme.sidebarBackground)
-        .navigationSplitViewColumnWidth(260)
-    }
-    
-    private var installOverlay: some View {
-        ZStack {
-            AppTheme.mainBackgroundGradient.ignoresSafeArea()
-            VStack(spacing: 24) {
-                Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 64))
-                    .foregroundColor(AppTheme.accentBlue)
-                
-                Text("Container Framework Required")
-                    .font(.system(size: 28, weight: .semibold))
-                    .fontWeight(.semibold)
-                    .foregroundColor(AppTheme.textPrimary)
-                
-                Text("Vessel requires the native containerization environment to run workloads.")
-                    .foregroundColor(AppTheme.textSecondary)
-                
-                if isInstalling {
-                    ProgressView(value: installProgress, total: 1.0)
-                        .progressViewStyle(.linear)
-                        .frame(width: 300)
-                        .tint(AppTheme.accentBlue)
-                    
-                    Text("\(Int(installProgress * 100))%")
-                        .font(.caption)
-                        .foregroundColor(AppTheme.textSecondary)
-                    
-                    Text(installStatusMessage)
-                        .font(.caption)
-                        .foregroundColor(AppTheme.textSecondary)
-                        .padding(.top, 4)
-                } else {
-                    Button(action: startInstallation) {
-                        Text("Install Framework")
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 32)
-                            .padding(.vertical, 14)
-                            .background(AppTheme.accentBlue)
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 16)
-                }
-            }
-        }
-    }
+
     
     private func startInstallation() {
         guard !isInstalling else { return }
@@ -456,6 +352,131 @@ struct ContentView: View {
                 print("Installation failed: \(error)")
                 await MainActor.run {
                     isInstalling = false
+                }
+            }
+        }
+    }
+}
+
+struct SidebarView: View {
+    @Binding var selectedSidebarItem: ContentView.SidebarItem?
+    @Binding var selectedContainerId: String?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header (Vessel Logo)
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(AppTheme.accentBlue)
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "cube.transparent")
+                        .foregroundColor(.white)
+                        .font(.system(size: 20))
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Vessel")
+                        .font(.system(size: 24, weight: .medium))
+                        .fontWeight(.semibold)
+                        .foregroundColor(AppTheme.accentBlue)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 24)
+            
+            Divider()
+                .background(AppTheme.cardBorder)
+            
+            // Menu Items
+            ScrollView {
+                VStack(spacing: 8) {
+                    ForEach(ContentView.SidebarItem.allCases) { item in
+                        Button(action: {
+                            selectedSidebarItem = item
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedContainerId = nil } // reset selection
+                        }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: item.icon)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
+                                    .frame(width: 24)
+                                
+                                Text(item.rawValue)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
+                                
+                                Spacer()
+                            }
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(selectedSidebarItem == item ? AppTheme.accentBlue.opacity(0.05) : Color.clear)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 12)
+                    }
+                }
+                .padding(.top, 24)
+            }
+            Spacer()
+        }
+        .background(Material.thin)
+        .background(AppTheme.sidebarBackground)
+        .navigationSplitViewColumnWidth(260)
+    }
+}
+
+struct InstallOverlayView: View {
+    let isInstalling: Bool
+    let installProgress: Double
+    let installStatusMessage: String
+    let onInstall: () -> Void
+    
+    var body: some View {
+        ZStack {
+            AppTheme.mainBackgroundGradient.ignoresSafeArea()
+            VStack(spacing: 24) {
+                Image(systemName: "shippingbox.fill")
+                    .font(.system(size: 64))
+                    .foregroundColor(AppTheme.accentBlue)
+                
+                Text("Container Framework Required")
+                    .font(.system(size: 28, weight: .semibold))
+                    .fontWeight(.semibold)
+                    .foregroundColor(AppTheme.textPrimary)
+                
+                Text("Vessel requires the native containerization environment to run workloads.")
+                    .foregroundColor(AppTheme.textSecondary)
+                
+                if isInstalling {
+                    ProgressView(value: installProgress, total: 1.0)
+                        .progressViewStyle(.linear)
+                        .frame(width: 300)
+                        .tint(AppTheme.accentBlue)
+                    
+                    Text("\(Int(installProgress * 100))%")
+                        .font(.caption)
+                        .foregroundColor(AppTheme.textSecondary)
+                    
+                    Text(installStatusMessage)
+                        .font(.caption)
+                        .foregroundColor(AppTheme.textSecondary)
+                        .padding(.top, 4)
+                } else {
+                    Button(action: onInstall) {
+                        Text("Install Framework")
+                            .fontWeight(.medium)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 14)
+                            .background(AppTheme.accentBlue)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 16)
                 }
             }
         }

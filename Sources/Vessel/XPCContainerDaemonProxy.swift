@@ -3,13 +3,14 @@ import VesselXPC
 import Containerization
 
 // Since VesselXPCStreamDelegate is @objc, we must subclass NSObject
-class StreamDelegateProxy: NSObject, VesselXPCStreamDelegate {
-    private let onEventBlock: (Data) -> Void
-    private let onCompleteBlock: (Error?) -> Void
+final class StreamDelegateProxy: NSObject, VesselXPCStreamDelegate, @unchecked Sendable {
+    private let onEventBlock: @Sendable (Data) -> Void
+    private let onCompleteBlock: @Sendable (Error?) -> Void
 
-    init(onEvent: @escaping (Data) -> Void, onComplete: @escaping (Error?) -> Void) {
+    init(onEvent: @escaping @Sendable (Data) -> Void, onComplete: @escaping @Sendable (Error?) -> Void) {
         self.onEventBlock = onEvent
         self.onCompleteBlock = onComplete
+        super.init()
     }
 
     func onEvent(payload: Data) {
@@ -28,7 +29,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         connection = NSXPCConnection(machServiceName: "com.vessel.daemon.xpc", options: [])
         connection.remoteObjectInterface = NSXPCInterface(with: VesselXPCProtocol.self)
 
-        let expectedClasses = NSSet(objects: NSString.self, NSData.self, NSDictionary.self, NSArray.self, NSNumber.self)
+        connection.remoteObjectInterface = NSXPCInterface(with: VesselXPCProtocol.self)
         let streamInterface = NSXPCInterface(with: VesselXPCStreamDelegate.self)
 
         connection.remoteObjectInterface?.setInterface(streamInterface, for: #selector(VesselXPCProtocol.openStream(command:payload:delegate:)), argumentIndex: 2, ofReply: false)
@@ -42,7 +43,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         } as! VesselXPCProtocol
     }
 
-    private func sendCommand<T: Decodable>(command: String, payload: [String: Any]) async throws -> T {
+    private func sendCommand<T: Decodable & Sendable>(command: String, payload: [String: Any]) async throws -> T {
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try await withCheckedThrowingContinuation { continuation in
             proxy.sendCommand(command: command, payload: data) { responseData, error in
@@ -241,7 +242,24 @@ public final class ContainerDaemon: @unchecked Sendable {
     public func pullImage(reference: String, progress: @escaping @Sendable (Double) -> Void) async throws {
         let data = try JSONSerialization.data(withJSONObject: ["ref": reference])
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            var isFinished = false
+            final class ContinuationWrapper: @unchecked Sendable {
+                var continuation: CheckedContinuation<Void, Error>?
+                let lock = NSLock()
+                func resume(returning value: Void) {
+                    lock.lock()
+                    defer { lock.unlock() }
+                    continuation?.resume(returning: value)
+                    continuation = nil
+                }
+                func resume(throwing error: Error) {
+                    lock.lock()
+                    defer { lock.unlock() }
+                    continuation?.resume(throwing: error)
+                    continuation = nil
+                }
+            }
+            let wrapper = ContinuationWrapper()
+            wrapper.continuation = continuation
 
             let delegate = StreamDelegateProxy(onEvent: { eventData in
                 if let dict = try? JSONSerialization.jsonObject(with: eventData) as? [String: Any] {
@@ -249,19 +267,14 @@ public final class ContainerDaemon: @unchecked Sendable {
                         progress(pct)
                     }
                     if let finished = dict["finished"] as? Bool, finished {
-                        if !isFinished {
-                            isFinished = true
-                            continuation.resume(returning: ())
-                        }
+                        wrapper.resume(returning: ())
                     }
                 }
             }, onComplete: { error in
-                if let error = error, !isFinished {
-                    isFinished = true
-                    continuation.resume(throwing: error)
-                } else if !isFinished {
-                    isFinished = true
-                    continuation.resume(returning: ())
+                if let error = error {
+                    wrapper.resume(throwing: error)
+                } else {
+                    wrapper.resume(returning: ())
                 }
             })
 

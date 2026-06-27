@@ -87,14 +87,8 @@ struct VesselApp: App {
 
     @State private var viewModel = ContainerViewModel()
 
-    private let xpcDelegate = VesselXPCListenerDelegate()
-    private let xpcListener: NSXPCListener
 
-    init() {
-        xpcListener = NSXPCListener(machServiceName: "com.vessel.cctl.xpc")
-        xpcListener.delegate = xpcDelegate
-        xpcListener.resume()
-    }
+
 
     var body: some Scene {
         WindowGroup {

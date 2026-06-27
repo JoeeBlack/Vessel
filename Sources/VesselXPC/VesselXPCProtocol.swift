@@ -1,6 +1,6 @@
 import Foundation
 
-@objc public protocol VesselXPCStreamDelegate {
+@objc public protocol VesselXPCStreamDelegate: Sendable {
     func onEvent(payload: Data)
     func onComplete(error: Error?)
 }

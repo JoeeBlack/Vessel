@@ -1,3 +1,4 @@
+import VesselXPC
 import SwiftUI
 
 public struct NetworkMapView: View {

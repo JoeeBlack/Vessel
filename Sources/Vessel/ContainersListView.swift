@@ -1,3 +1,4 @@
+import VesselXPC
 import SwiftUI
 
 enum SortOption: String, CaseIterable, Identifiable {
@@ -280,23 +281,7 @@ struct ContainerCardView: View {
                         .foregroundColor(AppTheme.textSecondary)
                         
                     if container.status == .running {
-                        let stats = viewModel.publishedStats[container.id] ?? StatsModel()
-                        let cpuPct = stats.cpuUsages.isEmpty ? 0.0 : stats.cpuUsages.reduce(0, +) / Double(max(1, stats.cpuUsages.count))
-                        let memMb = Double(stats.memUsedBytes) / 1024 / 1024
-                        
-                        HStack(spacing: 8) {
-                            HStack(spacing: 2) {
-                                Image(systemName: "cpu")
-                                Text(String(format: "%.0f%%", cpuPct * 100))
-                            }
-                            HStack(spacing: 2) {
-                                Image(systemName: "memorychip")
-                                Text(String(format: "%.0f MB", memMb))
-                            }
-                        }
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(AppTheme.textSecondary)
-                        .padding(.top, 2)
+                        ContainerCardStatsView(viewModel: viewModel, containerId: container.id)
                     }
                 }
             }
@@ -489,5 +474,30 @@ struct PortForwardLinkView: View {
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundColor(AppTheme.accentBlue)
         }
+    }
+}
+
+struct ContainerCardStatsView: View {
+    var viewModel: ContainerViewModel
+    let containerId: String
+    
+    var body: some View {
+        let stats = viewModel.publishedStats[containerId] ?? StatsModel()
+        let cpuPct = stats.cpuUsages.isEmpty ? 0.0 : stats.cpuUsages.reduce(0, +) / Double(max(1, stats.cpuUsages.count))
+        let memMb = Double(stats.memUsedBytes) / 1024 / 1024
+        
+        HStack(spacing: 8) {
+            HStack(spacing: 2) {
+                Image(systemName: "cpu")
+                Text(String(format: "%.0f%%", cpuPct * 100))
+            }
+            HStack(spacing: 2) {
+                Image(systemName: "memorychip")
+                Text(String(format: "%.0f MB", memMb))
+            }
+        }
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundColor(AppTheme.textSecondary)
+        .padding(.top, 2)
     }
 }
