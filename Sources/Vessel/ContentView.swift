@@ -497,14 +497,23 @@ extension View {
 
 class KernelDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     var onProgress: ((Double, Double, Double) -> Void)?
-    var continuation: CheckedContinuation<URL, Error>?
+    
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<URL, Error>?
     
     func download(url: URL) async throws -> URL {
-        return try await withCheckedThrowingContinuation { cont in
-            self.continuation = cont
-            let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
-            let task = session.downloadTask(with: url)
-            task.resume()
+        let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+        let task = session.downloadTask(with: url)
+        
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { cont in
+                self.lock.lock()
+                self.continuation = cont
+                self.lock.unlock()
+                task.resume()
+            }
+        } onCancel: {
+            task.cancel()
         }
     }
     
@@ -518,12 +527,23 @@ class KernelDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendabl
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.moveItem(at: location, to: tempURL)
-        continuation?.resume(returning: tempURL)
+        
+        lock.lock()
+        let cont = continuation
+        continuation = nil
+        lock.unlock()
+        
+        cont?.resume(returning: tempURL)
     }
     
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         if let error = error {
-            continuation?.resume(throwing: error)
+            lock.lock()
+            let cont = continuation
+            continuation = nil
+            lock.unlock()
+            
+            cont?.resume(throwing: error)
         }
     }
 }

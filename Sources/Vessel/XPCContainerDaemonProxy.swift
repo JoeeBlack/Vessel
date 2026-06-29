@@ -22,6 +22,29 @@ final class StreamDelegateProxy: NSObject, VesselXPCStreamDelegate, @unchecked S
     }
 }
 
+final class ContinuationWrapper<T: Sendable>: @unchecked Sendable {
+    var continuation: CheckedContinuation<T, Error>?
+    let lock = NSLock()
+    
+    init(_ continuation: CheckedContinuation<T, Error>) {
+        self.continuation = continuation
+    }
+    
+    func resume(returning value: T) {
+        lock.lock()
+        defer { lock.unlock() }
+        continuation?.resume(returning: value)
+        continuation = nil
+    }
+    
+    func resume(throwing error: Error) {
+        lock.lock()
+        defer { lock.unlock() }
+        continuation?.resume(throwing: error)
+        continuation = nil
+    }
+}
+
 public final class ContainerDaemon: @unchecked Sendable {
     private let connection: NSXPCConnection
 
@@ -46,21 +69,27 @@ public final class ContainerDaemon: @unchecked Sendable {
     private func sendCommand<T: Decodable & Sendable>(command: String, payload: [String: Any]) async throws -> T {
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try await withCheckedThrowingContinuation { continuation in
-            proxy.sendCommand(command: command, payload: data) { responseData, error in
+            let wrapper = ContinuationWrapper(continuation)
+            
+            let localProxy = connection.remoteObjectProxyWithErrorHandler { error in
+                wrapper.resume(throwing: error)
+            } as! VesselXPCProtocol
+
+            localProxy.sendCommand(command: command, payload: data) { responseData, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    wrapper.resume(throwing: error)
                     return
                 }
                 guard let responseData = responseData else {
-                    continuation.resume(throwing: NSError(domain: "Vessel", code: 500, userInfo: [NSLocalizedDescriptionKey: "No data"]))
+                    wrapper.resume(throwing: NSError(domain: "Vessel", code: 500, userInfo: [NSLocalizedDescriptionKey: "No data"]))
                     return
                 }
                 do {
                     let decoder = JSONDecoder()
                     let result = try decoder.decode(T.self, from: responseData)
-                    continuation.resume(returning: result)
+                    wrapper.resume(returning: result)
                 } catch {
-                    continuation.resume(throwing: error)
+                    wrapper.resume(throwing: error)
                 }
             }
         }
@@ -69,16 +98,22 @@ public final class ContainerDaemon: @unchecked Sendable {
     private func sendCommandRaw(command: String, payload: [String: Any]) async throws -> Data {
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try await withCheckedThrowingContinuation { continuation in
-            proxy.sendCommand(command: command, payload: data) { responseData, error in
+            let wrapper = ContinuationWrapper(continuation)
+            
+            let localProxy = connection.remoteObjectProxyWithErrorHandler { error in
+                wrapper.resume(throwing: error)
+            } as! VesselXPCProtocol
+
+            localProxy.sendCommand(command: command, payload: data) { responseData, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    wrapper.resume(throwing: error)
                     return
                 }
                 guard let responseData = responseData else {
-                    continuation.resume(throwing: NSError(domain: "Vessel", code: 500, userInfo: [NSLocalizedDescriptionKey: "No data"]))
+                    wrapper.resume(throwing: NSError(domain: "Vessel", code: 500, userInfo: [NSLocalizedDescriptionKey: "No data"]))
                     return
                 }
-                continuation.resume(returning: responseData)
+                wrapper.resume(returning: responseData)
             }
         }
     }
@@ -101,7 +136,10 @@ public final class ContainerDaemon: @unchecked Sendable {
         let semaphore = DispatchSemaphore(value: 0)
         var result: String? = nil
         if let data = try? JSONSerialization.data(withJSONObject: ["id": containerId]) {
-            proxy.sendCommand(command: "getContainerIP", payload: data) { responseData, _ in
+            let localProxy = connection.remoteObjectProxyWithErrorHandler { _ in
+                semaphore.signal()
+            } as! VesselXPCProtocol
+            localProxy.sendCommand(command: "getContainerIP", payload: data) { responseData, _ in
                 if let data = responseData,
                    let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
                     result = dict["ip"]
@@ -119,7 +157,10 @@ public final class ContainerDaemon: @unchecked Sendable {
         let semaphore = DispatchSemaphore(value: 0)
         var result: [DomainRule] = []
         let data = try! JSONSerialization.data(withJSONObject: [:])
-        proxy.sendCommand(command: "fetchDomainRules", payload: data) { responseData, _ in
+        let localProxy = connection.remoteObjectProxyWithErrorHandler { _ in
+            semaphore.signal()
+        } as! VesselXPCProtocol
+        localProxy.sendCommand(command: "fetchDomainRules", payload: data) { responseData, _ in
             if let data = responseData,
                let rules = try? JSONDecoder().decode([DomainRule].self, from: data) {
                 result = rules
@@ -186,7 +227,11 @@ public final class ContainerDaemon: @unchecked Sendable {
             continuation.finish()
         })
 
-        proxy.openStream(command: "startStatsStream", payload: data, delegate: delegate)
+        let localProxy = connection.remoteObjectProxyWithErrorHandler { _ in
+            continuation.finish()
+        } as! VesselXPCProtocol
+
+        localProxy.openStream(command: "startStatsStream", payload: data, delegate: delegate)
         return stream
     }
 
@@ -202,7 +247,11 @@ public final class ContainerDaemon: @unchecked Sendable {
             continuation.finish()
         })
 
-        proxy.openStream(command: "streamLogs", payload: data, delegate: delegate)
+        let localProxy = connection.remoteObjectProxyWithErrorHandler { _ in
+            continuation.finish()
+        } as! VesselXPCProtocol
+
+        localProxy.openStream(command: "streamLogs", payload: data, delegate: delegate)
         return stream
     }
 
@@ -229,24 +278,7 @@ public final class ContainerDaemon: @unchecked Sendable {
     public func pullImage(reference: String, progress: @escaping @Sendable (Double) -> Void) async throws {
         let data = try JSONSerialization.data(withJSONObject: ["ref": reference])
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            final class ContinuationWrapper: @unchecked Sendable {
-                var continuation: CheckedContinuation<Void, Error>?
-                let lock = NSLock()
-                func resume(returning value: Void) {
-                    lock.lock()
-                    defer { lock.unlock() }
-                    continuation?.resume(returning: value)
-                    continuation = nil
-                }
-                func resume(throwing error: Error) {
-                    lock.lock()
-                    defer { lock.unlock() }
-                    continuation?.resume(throwing: error)
-                    continuation = nil
-                }
-            }
-            let wrapper = ContinuationWrapper()
-            wrapper.continuation = continuation
+            let wrapper = ContinuationWrapper(continuation)
 
             let delegate = StreamDelegateProxy(onEvent: { eventData in
                 if let dict = try? JSONSerialization.jsonObject(with: eventData) as? [String: Any] {
@@ -265,7 +297,11 @@ public final class ContainerDaemon: @unchecked Sendable {
                 }
             })
 
-            proxy.openStream(command: "pullImage", payload: data, delegate: delegate)
+            let localProxy = connection.remoteObjectProxyWithErrorHandler { error in
+                wrapper.resume(throwing: error)
+            } as! VesselXPCProtocol
+
+            localProxy.openStream(command: "pullImage", payload: data, delegate: delegate)
         }
     }
 
