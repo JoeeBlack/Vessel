@@ -53,3 +53,7 @@ With `TaskGroup`, all containers receive the stop command in parallel, bringing 
 
 ## 2026-02-20
 Offloaded synchronous I/O from the main UI thread during volume exploration to prevent interface stutter using `try await Task.detached { ... }.value`.
+
+## 2024-06-28 - Optimize Synchronous Data Reading
+**Learning:** Using `Data(contentsOf:)` blocks the calling thread during I/O operations. In async contexts, it blocks thread pool execution entirely.
+**Action:** Use `options: .alwaysMapped` during initial synchronous setup steps to utilize memory mapping and defer I/O costs. Inside actual `async` contexts, always wrap `Data(contentsOf:)` in a `Task.detached { ... }.value` to completely offload the blocking operations.
