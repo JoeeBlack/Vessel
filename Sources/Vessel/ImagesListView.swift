@@ -140,8 +140,15 @@ class ImagesViewModel: @unchecked Sendable {
                     if vulns.isEmpty {
                         self.scanStatuses[id] = .safe
                     } else {
-                        let critical = vulns.filter { $0.severity.uppercased() == "CRITICAL" }.count
-                        let high = vulns.filter { $0.severity.uppercased() == "HIGH" }.count
+                        var critical = 0
+                        var high = 0
+                        for vuln in vulns {
+                            if vuln.severity.localizedCaseInsensitiveCompare("CRITICAL") == .orderedSame {
+                                critical += 1
+                            } else if vuln.severity.localizedCaseInsensitiveCompare("HIGH") == .orderedSame {
+                                high += 1
+                            }
+                        }
                         let other = vulns.count - critical - high
                         self.scanStatuses[id] = .vulnerable(critical: critical, high: high, other: other)
                     }
