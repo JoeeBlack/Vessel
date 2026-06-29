@@ -1199,7 +1199,8 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
             }
             let tracker = ProgressTracker()
             
-            _ = try await store.pull(reference: reference, progress: { events in
+            let platform = Platform(arch: "arm64", os: "linux", variant: "v8")
+            _ = try await store.pull(reference: reference, platform: platform, progress: { events in
                 for event in events {
                     if event.event == "add-size" {
                         if let size = event.value as? Int64 { await tracker.add(size: size) }
