@@ -159,7 +159,21 @@ public class ContainerViewModel: @unchecked Sendable {
         defer { loadingContainers.remove(newId) }
         
         do {
-            try await daemon.start(containerId: newId, imageReference: image, name: name, rootfsSizeGB: rootfsSizeGB, rosetta: rosetta, networking: networking, isBackground: isBackground, cpus: cpus, memoryGB: memoryGB, envVars: envVars, volumes: volumes, portForwards: portForwards, domain: domain)
+            let config = ContainerStartConfiguration(
+                imageReference: image,
+                name: name,
+                rootfsSizeGB: rootfsSizeGB,
+                rosetta: rosetta,
+                networking: networking,
+                isBackground: isBackground,
+                cpus: cpus,
+                memoryGB: memoryGB,
+                envVars: envVars,
+                volumes: volumes,
+                portForwards: portForwards,
+                domain: domain
+            )
+            try await daemon.start(containerId: newId, config: config)
             await fetchInitialWorkloads()
             sendBuildCompletedNotification(containerName: name)
         } catch {
