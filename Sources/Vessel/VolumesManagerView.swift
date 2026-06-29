@@ -221,18 +221,22 @@ struct VolumeExplorerView: View {
 
     private func loadFileContent(url: URL) {
         isSystemLoadingContent = true
-        defer {
-            DispatchQueue.main.async {
-                isSystemLoadingContent = false
+
+        Task {
+            do {
+                let content = try await Task.detached(priority: .userInitiated) {
+                    try String(contentsOf: url, encoding: .utf8)
+                }.value
+
+                self.fileContent = content
+                self.isEditing = false
+                self.errorMessage = nil
+                self.isSystemLoadingContent = false
+            } catch {
+                self.errorMessage = "Failed to read file: \(error.localizedDescription)"
+                self.fileContent = ""
+                self.isSystemLoadingContent = false
             }
-        }
-        do {
-            fileContent = try String(contentsOf: url, encoding: .utf8)
-            isEditing = false
-            errorMessage = nil
-        } catch {
-            errorMessage = "Failed to read file: \(error.localizedDescription)"
-            fileContent = ""
         }
     }
 
