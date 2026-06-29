@@ -38,8 +38,32 @@ public class FileReader: Containerization.ReaderStream, @unchecked Sendable {
     }
 
     public func read() async throws -> Data? {
-        let data = try Data(contentsOf: url)
-        return data
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+
+        var result = Data()
+        while true {
+            try Task.checkCancellation()
+            if #available(macOS 10.15.4, *) {
+                if let data = try handle.read(upToCount: 65536) {
+                    if data.isEmpty {
+                        break
+                    }
+                    result.append(data)
+                    await Task.yield()
+                } else {
+                    break
+                }
+            } else {
+                let data = handle.readData(ofLength: 65536)
+                if data.isEmpty {
+                    break
+                }
+                result.append(data)
+                await Task.yield()
+            }
+        }
+        return result
     }
 
     public func stream() -> AsyncStream<Data> {

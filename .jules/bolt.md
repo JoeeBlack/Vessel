@@ -45,3 +45,8 @@ With `TaskGroup`, all containers receive the stop command in parallel, bringing 
 
 ## 2026-02-20 - Concurrent Operations
 * In Swift codebases like Vessel, avoid executing asynchronous I/O operations (such as container start/stop/resume routines) sequentially inside a loop. Instead, wrap them in a `withTaskGroup` or `withThrowingTaskGroup` to process them concurrently, significantly reducing execution latency.
+
+### 2025-06-28
+* **What**: Replaced synchronous `Data(contentsOf:)` with a chunked async-aware file read using `FileHandle`.
+* **Why**: The synchronous read in `FileReader.read()` blocked the Swift cooperative thread pool, potentially causing starvation when reading large files. Using a chunked approach with `await Task.yield()` fixes this.
+* **Measured Improvement**: Replaced a blocking call that held a thread for the entire file read duration with a chunked `read` operation that yields between chunks, allowing other concurrent tasks to progress. The testing environment didn't have a Swift toolchain, preventing direct benchmark execution, but code inspection confirms the structural change.
