@@ -555,10 +555,10 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
         
         let imageConfig = try await image.config(for: platform).config
-        if let config = imageConfig {
-            let cwd = config.workingDir ?? "/"
-            let env = config.env ?? []
-            let args = (config.entrypoint ?? []) + (config.cmd ?? [])
+        if let imgConfig = imageConfig {
+            let cwd = imgConfig.workingDir ?? "/"
+            let env = imgConfig.env ?? []
+            let args = (imgConfig.entrypoint ?? []) + (imgConfig.cmd ?? [])
             
             container.workingDirectory = cwd
             var allEnvs = env
@@ -567,7 +567,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             container.environment = allEnvs
             container.arguments = args
             
-            if let rawString = config.user {
+            if let rawString = imgConfig.user {
                 container.user = ContainerizationOCI.User(username: rawString)
             }
         } else {
