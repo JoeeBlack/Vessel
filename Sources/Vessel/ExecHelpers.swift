@@ -38,8 +38,10 @@ public class FileReader: Containerization.ReaderStream, @unchecked Sendable {
     }
 
     public func read() async throws -> Data? {
-        let data = try Data(contentsOf: url)
-        return data
+        return try await Task.detached {
+            let data = try Data(contentsOf: self.url)
+            return data
+        }.value
     }
 
     public func stream() -> AsyncStream<Data> {

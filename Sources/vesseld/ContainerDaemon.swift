@@ -170,7 +170,7 @@ public final class ContainerDaemon: @unchecked Sendable {
     }
     
     private func loadContainers() {
-        guard let data = try? Data(contentsOf: containersFilePath),
+        guard let data = try? Data(contentsOf: containersFilePath, options: .alwaysMapped),
               let vessels = try? JSONDecoder().decode([VesselContainer].self, from: data) else {
             return
         }
@@ -192,7 +192,7 @@ public final class ContainerDaemon: @unchecked Sendable {
     }
     
     private func loadPods() {
-        guard let data = try? Data(contentsOf: podsFilePath),
+        guard let data = try? Data(contentsOf: podsFilePath, options: .alwaysMapped),
               let vesselPods = try? JSONDecoder().decode([VesselPod].self, from: data) else {
             return
         }
@@ -246,7 +246,7 @@ public final class ContainerDaemon: @unchecked Sendable {
     private func loadDomainRules() {
         let file = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/domain_rules.json")
         do {
-            let data = try Data(contentsOf: file)
+            let data = try Data(contentsOf: file, options: .alwaysMapped)
             domainRules = try JSONDecoder().decode([DomainRule].self, from: data)
         } catch {
             print("No saved domain rules found or failed to load.")

@@ -45,3 +45,7 @@ With `TaskGroup`, all containers receive the stop command in parallel, bringing 
 
 ## 2026-02-20 - Concurrent Operations
 * In Swift codebases like Vessel, avoid executing asynchronous I/O operations (such as container start/stop/resume routines) sequentially inside a loop. Instead, wrap them in a `withTaskGroup` or `withThrowingTaskGroup` to process them concurrently, significantly reducing execution latency.
+
+## 2024-06-28 - Optimize Synchronous Data Reading
+**Learning:** Using `Data(contentsOf:)` blocks the calling thread during I/O operations. In async contexts, it blocks thread pool execution entirely.
+**Action:** Use `options: .alwaysMapped` during initial synchronous setup steps to utilize memory mapping and defer I/O costs. Inside actual `async` contexts, always wrap `Data(contentsOf:)` in a `Task.detached { ... }.value` to completely offload the blocking operations.
