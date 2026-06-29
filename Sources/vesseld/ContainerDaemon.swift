@@ -470,6 +470,10 @@ public final class ContainerDaemon: @unchecked Sendable {
                     throw NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "Security Error: Attempted to mount restricted host path \(volume.host)"])
                 }
             }
+            let home = NSHomeDirectory()
+            if resolvedHostPath == "/" || resolvedHostPath == "/Users" || (resolvedHostPath.hasPrefix("/Users/") && resolvedHostPath != home && !resolvedHostPath.hasPrefix(home + "/")) {
+                throw NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "Security Error: Attempted to mount restricted host path \(volume.host) without explicit consent"])
+            }
         }
 
         // 🛡️ Sentinel: Ensure App Sandbox access to host paths using Security-Scoped Bookmarks
@@ -713,6 +717,10 @@ public final class ContainerDaemon: @unchecked Sendable {
                 if resolvedHostPath == blocked || resolvedHostPath.hasPrefix(blocked + "/") {
                     throw NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "Security Error: Attempted to mount restricted host path \(volume.host)"])
                 }
+            }
+            let home = NSHomeDirectory()
+            if resolvedHostPath == "/" || resolvedHostPath == "/Users" || (resolvedHostPath.hasPrefix("/Users/") && resolvedHostPath != home && !resolvedHostPath.hasPrefix(home + "/")) {
+                throw NSError(domain: "Vessel", code: 403, userInfo: [NSLocalizedDescriptionKey: "Security Error: Attempted to mount restricted host path \(volume.host) without explicit consent"])
             }
         }
 
