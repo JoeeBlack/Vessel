@@ -458,12 +458,12 @@ public final class ContainerDaemon: @unchecked Sendable {
         return ref
     }
     
-    public func start(containerId: String, imageReference: String, name: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, isBackground: Bool = false, cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], portForwards: [VesselPortForward] = [], domain: VesselDomain = .generic) async throws {
+    public func start(containerId: String, config: ContainerStartConfiguration) async throws {
 
         // 🛡️ Sentinel: Validate host file paths BEFORE configuration to prevent container escape
         // We throw an error early instead of silently ignoring invalid mounts which could cause data loss.
         let blockedPrefixes = ["/System", "/etc", "/private", "/var", "/bin", "/sbin", "/usr/bin", "/usr/sbin"]
-        for volume in volumes {
+        for volume in config.volumes {
             let resolvedHostPath = URL(fileURLWithPath: volume.host).resolvingSymlinksInPath().path
             for blocked in blockedPrefixes {
                 if resolvedHostPath == blocked || resolvedHostPath.hasPrefix(blocked + "/") {
@@ -473,7 +473,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
 
         // 🛡️ Sentinel: Ensure App Sandbox access to host paths using Security-Scoped Bookmarks
-        for volume in volumes {
+        for volume in config.volumes {
             try await BookmarkManager.shared.resolveAndAccess(path: volume.host)
         }
 
@@ -482,12 +482,12 @@ public final class ContainerDaemon: @unchecked Sendable {
             print("[\(Date())] \(msg)")
         }
         
-        debugLog("start() called for \(containerId) with \(imageReference)")
-        let normalizedRef = normalize(reference: imageReference)
+        debugLog("start() called for \(containerId) with \(config.imageReference)")
+        let normalizedRef = normalize(reference: config.imageReference)
         
         // 1. kernel
         let network: SimpleNATNetwork?
-        if networking {
+        if config.networking {
             debugLog("Initializing network...")
             network = SimpleNATNetwork()
             debugLog("Network initialized: \(network != nil)")
@@ -535,17 +535,17 @@ public final class ContainerDaemon: @unchecked Sendable {
         
         debugLog("Creating container instance...")
         let image = try await store.get(reference: normalizedRef)
-        let platform = rosetta ? Platform(arch: "amd64", os: "linux") : Platform(arch: "arm64", os: "linux", variant: "v8")
+        let platform = config.rosetta ? Platform(arch: "amd64", os: "linux") : Platform(arch: "arm64", os: "linux", variant: "v8")
         let containerDir = storePath.appendingPathComponent("containers")
         try? FileManager.default.createDirectory(at: containerDir, withIntermediateDirectories: true)
         
         let fsPath = containerDir.appendingPathComponent("\(containerId)-rootfs.ext4")
-        let rootfs = try await image.unpack(for: platform, at: fsPath, blockSizeInBytes: UInt64(rootfsSizeGB * 1024 * 1024 * 1024), progress: nil)
+        let rootfs = try await image.unpack(for: platform, at: fsPath, blockSizeInBytes: UInt64(config.rootfsSizeGB * 1024 * 1024 * 1024), progress: nil)
 
         let container = LinuxContainer(containerId, rootfs: rootfs, vmm: vmm)
-        container.cpus = cpus
-        container.memoryInBytes = UInt64(memoryGB * 1024 * 1024 * 1024)
-        container.rosetta = rosetta
+        container.cpus = config.cpus
+        container.memoryInBytes = UInt64(config.memoryGB * 1024 * 1024 * 1024)
+        container.rosetta = config.rosetta
         
         if var network = network {
             if let interface = try? network.createInterface(containerId) {
@@ -562,7 +562,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             
             container.workingDirectory = cwd
             var allEnvs = env
-            let resolvedServiceEnv = try resolveEnvironment(envVars)
+            let resolvedServiceEnv = try resolveEnvironment(config.envVars)
             allEnvs.append(contentsOf: resolvedServiceEnv)
             container.environment = allEnvs
             container.arguments = args
@@ -571,13 +571,13 @@ public final class ContainerDaemon: @unchecked Sendable {
                 container.user = ContainerizationOCI.User(username: rawString)
             }
         } else {
-            let resolvedServiceEnv = try resolveEnvironment(envVars)
+            let resolvedServiceEnv = try resolveEnvironment(config.envVars)
             container.environment.append(contentsOf: resolvedServiceEnv)
         }
         
         container.terminal = true
         
-        for volume in volumes {
+        for volume in config.volumes {
             // Check for restricted host paths to prevent container escapes
             let resolvedHostPath = URL(fileURLWithPath: volume.host).resolvingSymlinksInPath().path
             let restrictedPrefixes = ["/System", "/etc", "/private", "/var/run", "/dev"]
@@ -627,12 +627,12 @@ public final class ContainerDaemon: @unchecked Sendable {
 
         // Start Port Forwarders
         var activeForwarders: [PortForwarder] = []
-        if networking {
+        if config.networking {
             // we use the IP configured for the container
             // Currently our simplistic SimpleNATNetwork creates 192.168.64.X
             let targetIP = container.interfaces.first?.address.components(separatedBy: "/").first ?? "127.0.0.1"
 
-            for pf in portForwards {
+            for pf in config.portForwards {
                 guard pf.hostPort >= 1 && pf.hostPort <= 65535,
                       pf.containerPort >= 1 && pf.containerPort <= 65535 else { continue }
                 let forwarder = PortForwarder(hostPort: UInt16(pf.hostPort), targetIP: targetIP, targetPort: UInt16(pf.containerPort))
@@ -647,8 +647,8 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
 
         var netService: NetService?
-        if networking {
-            let safeName = name.replacingOccurrences(of: " ", with: "-").lowercased()
+        if config.networking {
+            let safeName = config.name.replacingOccurrences(of: " ", with: "-").lowercased()
             let svc = NetService(domain: "vessel.test.", type: "_http._tcp.", name: safeName, port: 80)
             netService = svc
             let box = SafeNetServiceBox(svc)
@@ -659,21 +659,21 @@ public final class ContainerDaemon: @unchecked Sendable {
 
         let vessel = VesselContainer(
             id: containerId,
-            name: name,
+            name: config.name,
             subtitle: "WORKLOAD",
-            image: imageReference,
+            image: config.imageReference,
             status: .running,
-            ipAddress: networking ? "127.0.0.1" : nil,
-            rosettaEnabled: rosetta,
-            networkingEnabled: networking,
-            isBackground: isBackground,
-            rootfsSize: "\(Int(rootfsSizeGB))GB",
-            cpus: cpus,
-            memoryGB: memoryGB,
-            envVars: envVars,
-            volumes: volumes,
-            portForwards: portForwards,
-            domain: domain
+            ipAddress: config.networking ? "127.0.0.1" : nil,
+            rosettaEnabled: config.rosetta,
+            networkingEnabled: config.networking,
+            isBackground: config.isBackground,
+            rootfsSize: "\(Int(config.rootfsSizeGB))GB",
+            cpus: config.cpus,
+            memoryGB: config.memoryGB,
+            envVars: config.envVars,
+            volumes: config.volumes,
+            portForwards: config.portForwards,
+            domain: config.domain
         )
         
         activeContainers[containerId] = ActiveContainer(vessel: vessel, linux: container, logStream: stream, portForwarders: activeForwarders, netService: netService)

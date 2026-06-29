@@ -145,27 +145,14 @@ public final class ContainerDaemon: @unchecked Sendable {
         _ = try await sendCommandRaw(command: "startPod", payload: ["yamlPath": yamlPath.path])
     }
 
-    public func start(containerId: String, imageReference: String, name: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, isBackground: Bool = false, cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], portForwards: [VesselPortForward] = [], domain: VesselDomain = .generic) async throws {
+    public func start(containerId: String, config: ContainerStartConfiguration) async throws {
 
         let encoder = JSONEncoder()
-        let volsData = try encoder.encode(volumes)
-        let pfData = try encoder.encode(portForwards)
-        let domainData = try encoder.encode(domain)
+        let configData = try encoder.encode(config)
 
         let payload: [String: Any] = [
             "containerId": containerId,
-            "imageReference": imageReference,
-            "name": name,
-            "rootfsSizeGB": rootfsSizeGB,
-            "rosetta": rosetta,
-            "networking": networking,
-            "isBackground": isBackground,
-            "cpus": cpus,
-            "memoryGB": memoryGB,
-            "envVars": envVars,
-            "volumes": try JSONSerialization.jsonObject(with: volsData),
-            "portForwards": try JSONSerialization.jsonObject(with: pfData),
-            "domain": try JSONSerialization.jsonObject(with: domainData)
+            "config": try JSONSerialization.jsonObject(with: configData)
         ]
         _ = try await sendCommandRaw(command: "startFull", payload: payload)
     }

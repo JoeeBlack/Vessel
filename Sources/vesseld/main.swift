@@ -63,28 +63,12 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
                 case "startFull":
                     if let d = dict,
                        let id = d["containerId"] as? String,
-                       let image = d["imageReference"] as? String,
-                       let name = d["name"] as? String,
-                       let rootfs = d["rootfsSizeGB"] as? Double,
-                       let rosetta = d["rosetta"] as? Bool,
-                       let networking = d["networking"] as? Bool,
-                       let cpus = d["cpus"] as? Int,
-                       let memory = d["memoryGB"] as? Double,
-                       let isBg = d["isBackground"] as? Bool,
-                       let envVars = d["envVars"] as? [String: String],
-                       let vols = d["volumes"],
-                       let pfs = d["portForwards"],
-                       let domainRaw = d["domain"] {
+                       let configDict = d["config"] {
 
-                        let vData = try JSONSerialization.data(withJSONObject: vols)
-                        let pfData = try JSONSerialization.data(withJSONObject: pfs)
-                        let dData = try JSONSerialization.data(withJSONObject: domainRaw)
+                        let configData = try JSONSerialization.data(withJSONObject: configDict)
+                        let config = try JSONDecoder().decode(ContainerStartConfiguration.self, from: configData)
 
-                        let volumes = try JSONDecoder().decode([VesselVolume].self, from: vData)
-                        let portForwards = try JSONDecoder().decode([VesselPortForward].self, from: pfData)
-                        let domain = try JSONDecoder().decode(VesselDomain.self, from: dData)
-
-                        try await daemon.start(containerId: id, imageReference: image, name: name, rootfsSizeGB: rootfs, rosetta: rosetta, networking: networking, isBackground: isBg, cpus: cpus, memoryGB: memory, envVars: envVars, volumes: volumes, portForwards: portForwards, domain: domain)
+                        try await daemon.start(containerId: id, config: config)
                     }
                     replyWrapper.reply(Data(), nil)
                 case "start":

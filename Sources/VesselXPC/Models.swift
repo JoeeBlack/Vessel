@@ -34,6 +34,36 @@ public struct DomainRule: Identifiable, Codable, Hashable, Sendable {
 }
 
 // MARK: - Models
+public struct ContainerStartConfiguration: Codable, Sendable {
+    public var imageReference: String
+    public var name: String
+    public var rootfsSizeGB: Double
+    public var rosetta: Bool
+    public var networking: Bool
+    public var isBackground: Bool
+    public var cpus: Int
+    public var memoryGB: Double
+    public var envVars: [String: String]
+    public var volumes: [VesselVolume]
+    public var portForwards: [VesselPortForward]
+    public var domain: VesselDomain
+
+    public init(imageReference: String, name: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, isBackground: Bool = false, cpus: Int = 2, memoryGB: Double = 2.0, envVars: [String: String] = [:], volumes: [VesselVolume] = [], portForwards: [VesselPortForward] = [], domain: VesselDomain = .generic) {
+        self.imageReference = imageReference
+        self.name = name
+        self.rootfsSizeGB = rootfsSizeGB
+        self.rosetta = rosetta
+        self.networking = networking
+        self.isBackground = isBackground
+        self.cpus = cpus
+        self.memoryGB = memoryGB
+        self.envVars = envVars
+        self.volumes = volumes
+        self.portForwards = portForwards
+        self.domain = domain
+    }
+}
+
 public struct VesselVolume: Codable, Hashable, Sendable {
     public let host: String
     public let container: String
