@@ -110,6 +110,11 @@ public final class ContainerDaemon: @unchecked Sendable {
     }
 
     private func fetchFromKeychain(key: String) throws -> String {
+        let allowedKeys = (try? SecretsManager.shared.getAllGlobalSecretKeys()) ?? []
+        guard allowedKeys.contains(key) || key.hasPrefix("vessel.") else {
+            throw NSError(domain: "VesselKeychain", code: 403, userInfo: [NSLocalizedDescriptionKey: "Access denied. Key '\(key)' is not explicitly permitted or properly namespaced for Vessel."])
+        }
+
         let context = LAContext()
         context.localizedReason = "Vessel requires access to secret '\(key)' to start the container."
 
