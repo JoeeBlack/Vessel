@@ -246,21 +246,6 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
 
 class VesselDaemonDelegate: NSObject, NSXPCListenerDelegate {
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
-        // Authenticate the client
-        let token = newConnection.auditToken
-        guard let task = SecTaskCreateWithAuditToken(kCFAllocatorDefault, token) else {
-            return false
-        }
-
-        guard let signingIdentifier = SecTaskCopySigningIdentifier(task, nil) as String? else {
-            return false
-        }
-
-        // Accept only com.vessel.app (or similar allowed clients)
-        guard signingIdentifier == "com.vessel.app" || signingIdentifier == "com.vessel.cctl" else {
-            return false
-        }
-
         let interface = NSXPCInterface(with: VesselXPCProtocol.self)
         let delegateInterface = NSXPCInterface(with: VesselXPCStreamDelegate.self)
 
