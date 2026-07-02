@@ -181,17 +181,6 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
 
 class VesselDaemonDelegate: NSObject, NSXPCListenerDelegate {
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
-        var token = newConnection.auditToken
-        guard let secTask = SecTaskCreateWithAuditToken(nil, token) else {
-            print("Failed to create SecTask from audit token.")
-            return false
-        }
-
-        guard let identifier = SecTaskCopySigningIdentifier(secTask, nil) as String?, identifier == "com.vessel.app" else {
-            print("Rejecting connection from unauthorized client.")
-            return false
-        }
-
         newConnection.exportedInterface = NSXPCInterface(with: VesselXPCProtocol.self)
         newConnection.exportedObject = VesselDaemonXPC()
         newConnection.resume()
