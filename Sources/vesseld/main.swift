@@ -2,7 +2,7 @@ import Foundation
 import Security
 import VesselXPC
 
-class VesselDaemonXPC: NSObject, VesselXPCProtocol {
+class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
     private let daemon = ContainerDaemon()
 
     func ps(reply: @escaping (String) -> Void) {
@@ -47,7 +47,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
         }
         let replyWrapper = ReplyWrapper(reply: reply)
         let daemon = self.daemon
-        Task {
+        Task { [daemon, command, payload, replyWrapper] in
 
             do {
                 let dict = try? JSONSerialization.jsonObject(with: payload) as? [String: Any]
@@ -192,7 +192,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
         let wrapper = DelegateWrapper(delegate: delegate)
         
         let daemon = self.daemon
-        Task {
+        Task { [daemon, command, payload, wrapper] in
 
             do {
                 let dict = try? JSONSerialization.jsonObject(with: payload) as? [String: Any]
