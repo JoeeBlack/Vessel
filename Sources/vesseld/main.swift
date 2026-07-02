@@ -17,7 +17,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
         reply(nil, NSError(domain: "VesselDaemonXPC", code: 501, userInfo: [NSLocalizedDescriptionKey: "Not implemented in daemon"]))
     }
 
-    func isPathSafe(_ path: String) -> Bool {
+    private static func isPathSafe(_ path: String) -> Bool {
         // Prevent arbitrary directory mount bypasses and enforce explicit user consent
         // Reject paths targeting root (/), /Users, or outside the current user's home directory.
         let expandedPath = NSString(string: path).expandingTildeInPath
@@ -46,7 +46,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
             let reply: (Data?, Error?) -> Void
         }
         let replyWrapper = ReplyWrapper(reply: reply)
-        Task { [daemon = self.daemon, isPathSafe = self.isPathSafe] in
+        Task { [daemon = self.daemon] in
 
             do {
                 let dict = try? JSONSerialization.jsonObject(with: payload) as? [String: Any]
@@ -92,7 +92,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing yamlPath"]))
                         return
                     }
-                    guard isPathSafe(path) else {
+                    guard Self.isPathSafe(path) else {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Invalid or unauthorized path"]))
                         return
                     }
@@ -128,7 +128,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id, path, or dest"]))
                         return
                     }
-                    guard isPathSafe(dest) else {
+                    guard Self.isPathSafe(dest) else {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Invalid or unauthorized destination path"]))
                         return
                     }
@@ -139,7 +139,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id, source, or dest"]))
                         return
                     }
-                    guard isPathSafe(source) else {
+                    guard Self.isPathSafe(source) else {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Invalid or unauthorized source path"]))
                         return
                     }
