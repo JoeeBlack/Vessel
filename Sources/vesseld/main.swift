@@ -46,7 +46,8 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
             let reply: (Data?, Error?) -> Void
         }
         let replyWrapper = ReplyWrapper(reply: reply)
-        Task { [daemon = self.daemon] in
+        let daemon = self.daemon
+        Task {
 
             do {
                 let dict = try? JSONSerialization.jsonObject(with: payload) as? [String: Any]
@@ -190,7 +191,8 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
         }
         let wrapper = DelegateWrapper(delegate: delegate)
         
-        Task { [daemon = self.daemon] in
+        let daemon = self.daemon
+        Task {
 
             do {
                 let dict = try? JSONSerialization.jsonObject(with: payload) as? [String: Any]
