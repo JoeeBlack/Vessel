@@ -180,29 +180,37 @@ struct VolumeExplorerView: View {
 
     private func loadFiles() {
         errorMessage = nil
-        let fm = FileManager.default
-        do {
-            let rootPath = URL(fileURLWithPath: volume.host).resolvingSymlinksInPath().path
-            let resolvedCurrentPath = currentPath.resolvingSymlinksInPath().path
 
-            // Security check: ensure we are within the volume host path
-            // Use hasPrefix with a trailing slash to prevent directory traversal to identically prefixed sibling directories.
-            let rootPathWithSlash = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
-            let resolvedCurrentPathWithSlash = resolvedCurrentPath.hasSuffix("/") ? resolvedCurrentPath : resolvedCurrentPath + "/"
+        Task {
+            do {
+                let currentPath = self.currentPath
+                let hostPath = self.volume.host
 
-            // Allow exact match of rootPath, or children
-            let isSafe = resolvedCurrentPath == rootPath || resolvedCurrentPathWithSlash.hasPrefix(rootPathWithSlash)
-            if !isSafe {
-                errorMessage = "Security Error: Path traversal detected."
-                files = []
-                return
+                let resultFiles = try await Task.detached(priority: .userInitiated) {
+                    let fm = FileManager.default
+                    let rootPath = URL(fileURLWithPath: hostPath).resolvingSymlinksInPath().path
+                    let resolvedCurrentPath = currentPath.resolvingSymlinksInPath().path
+
+                    // Security check: ensure we are within the volume host path
+                    // Use hasPrefix with a trailing slash to prevent directory traversal to identically prefixed sibling directories.
+                    let rootPathWithSlash = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+                    let resolvedCurrentPathWithSlash = resolvedCurrentPath.hasSuffix("/") ? resolvedCurrentPath : resolvedCurrentPath + "/"
+
+                    // Allow exact match of rootPath, or children
+                    let isSafe = resolvedCurrentPath == rootPath || resolvedCurrentPathWithSlash.hasPrefix(rootPathWithSlash)
+                    if !isSafe {
+                        throw NSError(domain: "Security", code: 1, userInfo: [NSLocalizedDescriptionKey: "Security Error: Path traversal detected."])
+                    }
+
+                    let contents = try fm.contentsOfDirectory(at: currentPath, includingPropertiesForKeys: [.isDirectoryKey], options: .skipsHiddenFiles)
+                    return contents.sorted { $0.lastPathComponent < $1.lastPathComponent }
+                }.value
+
+                self.files = resultFiles
+            } catch {
+                self.errorMessage = "Failed to load directory: \(error.localizedDescription)"
+                self.files = []
             }
-
-            let contents = try fm.contentsOfDirectory(at: currentPath, includingPropertiesForKeys: [.isDirectoryKey], options: .skipsHiddenFiles)
-            files = contents.sorted { $0.lastPathComponent < $1.lastPathComponent }
-        } catch {
-            errorMessage = "Failed to load directory: \(error.localizedDescription)"
-            files = []
         }
     }
 
@@ -224,8 +232,13 @@ struct VolumeExplorerView: View {
 
         Task {
             do {
+                // Read mapped off the main thread to avoid blocking the UI
                 let content = try await Task.detached(priority: .userInitiated) {
-                    try String(contentsOf: url, encoding: .utf8)
+                    let data = try Data(contentsOf: url, options: .mappedIfSafe)
+                    guard let string = String(data: data, encoding: .utf8) else {
+                        throw NSError(domain: "VolumesManagerView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to decode UTF-8"])
+                    }
+                    return string
                 }.value
 
                 self.fileContent = content
@@ -254,18 +267,23 @@ struct VolumeExplorerView: View {
              return
         }
 
-        do {
-            let data = fileContent.data(using: .utf8)!
-            let fm = FileManager.default
-            let oldAttributes = try? fm.attributesOfItem(atPath: selectedFile.path)
-            try data.write(to: selectedFile, options: [.atomic])
-            if let oldPerms = oldAttributes?[.posixPermissions] {
-                try fm.setAttributes([.posixPermissions: oldPerms], ofItemAtPath: selectedFile.path)
+        Task {
+            do {
+                let data = fileContent.data(using: .utf8)!
+                let targetPath = selectedFile.path
+                try await Task.detached(priority: .userInitiated) {
+                    let fm = FileManager.default
+                    let oldAttributes = try? fm.attributesOfItem(atPath: targetPath)
+                    try data.write(to: URL(fileURLWithPath: targetPath), options: [.atomic])
+                    if let oldPerms = oldAttributes?[.posixPermissions] {
+                        try fm.setAttributes([.posixPermissions: oldPerms], ofItemAtPath: targetPath)
+                    }
+                }.value
+                self.isEditing = false
+                self.errorMessage = nil
+            } catch {
+                self.errorMessage = "Failed to save file: \(error.localizedDescription)"
             }
-            isEditing = false
-            errorMessage = nil
-        } catch {
-            errorMessage = "Failed to save file: \(error.localizedDescription)"
         }
     }
 }
