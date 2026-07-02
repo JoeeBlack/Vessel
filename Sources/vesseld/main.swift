@@ -17,13 +17,36 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
         reply(nil, NSError(domain: "VesselDaemonXPC", code: 501, userInfo: [NSLocalizedDescriptionKey: "Not implemented in daemon"]))
     }
 
+    func isPathSafe(_ path: String) -> Bool {
+        // Prevent arbitrary directory mount bypasses and enforce explicit user consent
+        // Reject paths targeting root (/), /Users, or outside the current user's home directory.
+        let expandedPath = NSString(string: path).expandingTildeInPath
+        let standardizedPath = URL(fileURLWithPath: expandedPath).standardized.path
+
+        if standardizedPath == "/" || standardizedPath == "/Users" {
+            return false
+        }
+
+        if path.contains("..") {
+            return false
+        }
+
+        let homeDir = NSHomeDirectory()
+        // Ensure path is exactly the home dir or a subdirectory, preventing bypasses like /Users/johnny for /Users/john
+        if standardizedPath != homeDir && !standardizedPath.hasPrefix(homeDir + "/") {
+            return false
+        }
+
+        return true
+    }
+
     func sendCommand(command: String, payload: Data, reply: @escaping (Data?, Error?) -> Void) {
         
         struct ReplyWrapper: @unchecked Sendable {
             let reply: (Data?, Error?) -> Void
         }
         let replyWrapper = ReplyWrapper(reply: reply)
-        Task { [daemon = self.daemon] in
+        Task { [daemon = self.daemon, isPathSafe = self.isPathSafe] in
 
             do {
                 let dict = try? JSONSerialization.jsonObject(with: payload) as? [String: Any]
@@ -36,7 +59,11 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
                     let workloads = try await daemon.fetchActiveWorkloads()
                     replyWrapper.reply(try JSONEncoder().encode(workloads), nil)
                 case "getContainerIP":
-                    if let id = dict?["id"] as? String, let ip = daemon.getContainerIP(containerId: id) {
+                    guard let id = dict?["id"] as? String else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing container id"]))
+                        return
+                    }
+                    if let ip = daemon.getContainerIP(containerId: id) {
                         replyWrapper.reply(try JSONSerialization.data(withJSONObject: ["ip": ip]), nil)
                     } else {
                         replyWrapper.reply(Data(), nil)
@@ -45,52 +72,78 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
                     let rules = daemon.fetchDomainRules()
                     replyWrapper.reply(try JSONEncoder().encode(rules), nil)
                 case "addDomainRule":
-                    if let d = dict,
-                       let jsonData = try? JSONSerialization.data(withJSONObject: d),
-                       let rule = try? JSONDecoder().decode(DomainRule.self, from: jsonData) {
-                        daemon.addDomainRule(rule)
+                    guard let d = dict,
+                          let jsonData = try? JSONSerialization.data(withJSONObject: d),
+                          let rule = try? JSONDecoder().decode(DomainRule.self, from: jsonData) else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid domain rule payload"]))
+                        return
                     }
+                    daemon.addDomainRule(rule)
                     replyWrapper.reply(Data(), nil)
                 case "removeDomainRule":
-                    if let idStr = dict?["id"] as? String, let uuid = UUID(uuidString: idStr) {
-                        daemon.removeDomainRule(id: uuid)
+                    guard let idStr = dict?["id"] as? String, let uuid = UUID(uuidString: idStr) else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing or invalid id"]))
+                        return
                     }
+                    daemon.removeDomainRule(id: uuid)
                     replyWrapper.reply(Data(), nil)
                 case "startPod":
-                    if let path = dict?["yamlPath"] as? String {
-                        try await daemon.startPod(yamlPath: URL(fileURLWithPath: path))
+                    guard let path = dict?["yamlPath"] as? String else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing yamlPath"]))
+                        return
                     }
+                    guard isPathSafe(path) else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Invalid or unauthorized path"]))
+                        return
+                    }
+                    try await daemon.startPod(yamlPath: URL(fileURLWithPath: path))
                     replyWrapper.reply(Data(), nil)
                 case "startFull":
-                    if let d = dict,
-                       let id = d["containerId"] as? String,
-                       let configDict = d["config"] {
-
-                        let configData = try JSONSerialization.data(withJSONObject: configDict)
-                        let config = try JSONDecoder().decode(ContainerStartConfiguration.self, from: configData)
-
-                        try await daemon.start(containerId: id, config: config)
+                    guard let d = dict,
+                          let id = d["containerId"] as? String,
+                          let configDict = d["config"] else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing containerId or config"]))
+                        return
                     }
+                    let configData = try JSONSerialization.data(withJSONObject: configDict)
+                    let config = try JSONDecoder().decode(ContainerStartConfiguration.self, from: configData)
+                    try await daemon.start(containerId: id, config: config)
                     replyWrapper.reply(Data(), nil)
                 case "start":
-                    if let id = dict?["id"] as? String {
-                        try await daemon.start(containerId: id)
+                    guard let id = dict?["id"] as? String else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id"]))
+                        return
                     }
+                    try await daemon.start(containerId: id)
                     replyWrapper.reply(Data(), nil)
                 case "listFiles":
-                    if let id = dict?["id"] as? String, let path = dict?["path"] as? String {
-                        let files = try await daemon.listFiles(in: path, containerId: id)
-                        replyWrapper.reply(try JSONSerialization.data(withJSONObject: ["files": files]), nil)
+                    guard let id = dict?["id"] as? String, let path = dict?["path"] as? String else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id or path"]))
+                        return
                     }
+                    let files = try await daemon.listFiles(in: path, containerId: id)
+                    replyWrapper.reply(try JSONSerialization.data(withJSONObject: ["files": files]), nil)
                 case "downloadFile":
-                    if let id = dict?["id"] as? String, let path = dict?["path"] as? String, let dest = dict?["dest"] as? String {
-                        try await daemon.downloadFile(containerId: id, path: path, to: URL(fileURLWithPath: dest))
+                    guard let id = dict?["id"] as? String, let path = dict?["path"] as? String, let dest = dict?["dest"] as? String else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id, path, or dest"]))
+                        return
                     }
+                    guard isPathSafe(dest) else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Invalid or unauthorized destination path"]))
+                        return
+                    }
+                    try await daemon.downloadFile(containerId: id, path: path, to: URL(fileURLWithPath: dest))
                     replyWrapper.reply(Data(), nil)
                 case "uploadFile":
-                    if let id = dict?["id"] as? String, let source = dict?["source"] as? String, let dest = dict?["dest"] as? String {
-                        try await daemon.uploadFile(containerId: id, from: URL(fileURLWithPath: source), to: dest)
+                    guard let id = dict?["id"] as? String, let source = dict?["source"] as? String, let dest = dict?["dest"] as? String else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id, source, or dest"]))
+                        return
                     }
+                    guard isPathSafe(source) else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Invalid or unauthorized source path"]))
+                        return
+                    }
+                    try await daemon.uploadFile(containerId: id, from: URL(fileURLWithPath: source), to: dest)
                     replyWrapper.reply(Data(), nil)
                 case "pauseAll":
                     try await daemon.pauseAll()
@@ -99,22 +152,28 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
                     try await daemon.resumeAll()
                     replyWrapper.reply(Data(), nil)
                 case "stop":
-                    if let id = dict?["id"] as? String, let force = dict?["force"] as? Bool {
-                        try await daemon.stop(containerId: id, force: force)
+                    guard let id = dict?["id"] as? String, let force = dict?["force"] as? Bool else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id or force"]))
+                        return
                     }
+                    try await daemon.stop(containerId: id, force: force)
                     replyWrapper.reply(Data(), nil)
                 case "delete":
-                    if let id = dict?["id"] as? String {
-                        try await daemon.delete(containerId: id)
+                    guard let id = dict?["id"] as? String else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id"]))
+                        return
                     }
+                    try await daemon.delete(containerId: id)
                     replyWrapper.reply(Data(), nil)
                 case "fetchImages":
                     let images = try await daemon.fetchImages()
                     replyWrapper.reply(try JSONEncoder().encode(images), nil)
                 case "deleteImage":
-                    if let ref = dict?["ref"] as? String {
-                        try await daemon.deleteImage(reference: ref)
+                    guard let ref = dict?["ref"] as? String else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing ref"]))
+                        return
                     }
+                    try await daemon.deleteImage(reference: ref)
                     replyWrapper.reply(Data(), nil)
                 default:
                     replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 404, userInfo: [NSLocalizedDescriptionKey: "Command not found: \(command)"]))
@@ -138,36 +197,42 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
 
                 switch command {
                 case "startStatsStream":
-                    if let id = dict?["id"] as? String {
-                        let stream = try await daemon.startStatsStream(containerId: id)
-                        for await stat in stream {
-                            if let data = try? JSONEncoder().encode(stat) {
-                                wrapper.delegate.onEvent(payload: data)
-                            }
-                        }
-                        wrapper.delegate.onComplete(error: nil)
+                    guard let id = dict?["id"] as? String else {
+                        wrapper.delegate.onComplete(error: NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing container id"]))
+                        return
                     }
-                case "streamLogs":
-                    if let id = dict?["id"] as? String {
-                        let stream = daemon.streamLogs(for: id)
-                        for await log in stream {
-                            if let data = log.data(using: .utf8) {
-                                wrapper.delegate.onEvent(payload: data)
-                            }
-                        }
-                        wrapper.delegate.onComplete(error: nil)
-                    }
-                case "pullImage":
-                    if let ref = dict?["ref"] as? String {
-                        try await daemon.pullImage(reference: ref) { progress in
-                            if let data = try? JSONSerialization.data(withJSONObject: ["progress": progress, "finished": false]) {
-                                wrapper.delegate.onEvent(payload: data)
-                            }
-                        }
-                        if let data = try? JSONSerialization.data(withJSONObject: ["progress": 1.0, "finished": true]) {
+                    let stream = try await daemon.startStatsStream(containerId: id)
+                    for await stat in stream {
+                        if let data = try? JSONEncoder().encode(stat) {
                             wrapper.delegate.onEvent(payload: data)
-                            wrapper.delegate.onComplete(error: nil)
                         }
+                    }
+                    wrapper.delegate.onComplete(error: nil)
+                case "streamLogs":
+                    guard let id = dict?["id"] as? String else {
+                        wrapper.delegate.onComplete(error: NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing container id"]))
+                        return
+                    }
+                    let stream = daemon.streamLogs(for: id)
+                    for await log in stream {
+                        if let data = log.data(using: .utf8) {
+                            wrapper.delegate.onEvent(payload: data)
+                        }
+                    }
+                    wrapper.delegate.onComplete(error: nil)
+                case "pullImage":
+                    guard let ref = dict?["ref"] as? String else {
+                        wrapper.delegate.onComplete(error: NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing ref"]))
+                        return
+                    }
+                    try await daemon.pullImage(reference: ref) { progress in
+                        if let data = try? JSONSerialization.data(withJSONObject: ["progress": progress, "finished": false]) {
+                            wrapper.delegate.onEvent(payload: data)
+                        }
+                    }
+                    if let data = try? JSONSerialization.data(withJSONObject: ["progress": 1.0, "finished": true]) {
+                        wrapper.delegate.onEvent(payload: data)
+                        wrapper.delegate.onComplete(error: nil)
                     }
                 default:
                     wrapper.delegate.onComplete(error: NSError(domain: "VesselDaemonXPC", code: 404, userInfo: [NSLocalizedDescriptionKey: "Stream command not found: \(command)"]))
@@ -181,7 +246,29 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol {
 
 class VesselDaemonDelegate: NSObject, NSXPCListenerDelegate {
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
-        newConnection.exportedInterface = NSXPCInterface(with: VesselXPCProtocol.self)
+        // Authenticate the client
+        let token = newConnection.auditToken
+        guard let task = SecTaskCreateWithAuditToken(kCFAllocatorDefault, token) else {
+            return false
+        }
+
+        guard let signingIdentifier = SecTaskCopySigningIdentifier(task, nil) as String? else {
+            return false
+        }
+
+        // Accept only com.vessel.app (or similar allowed clients)
+        guard signingIdentifier == "com.vessel.app" || signingIdentifier == "com.vessel.cctl" else {
+            return false
+        }
+
+        let interface = NSXPCInterface(with: VesselXPCProtocol.self)
+        let delegateInterface = NSXPCInterface(with: VesselXPCStreamDelegate.self)
+
+        // Assuming openStream corresponds to the selector `openStreamWithCommand:payload:delegate:`
+        // Note: The selector in Swift is usually `openStream(command:payload:delegate:)` but let's check
+        interface.setInterface(delegateInterface, for: #selector(VesselXPCProtocol.openStream(command:payload:delegate:)), argumentIndex: 2, ofReply: false)
+
+        newConnection.exportedInterface = interface
         newConnection.exportedObject = VesselDaemonXPC()
         newConnection.resume()
         return true
