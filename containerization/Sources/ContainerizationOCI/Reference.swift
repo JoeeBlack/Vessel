@@ -42,7 +42,7 @@ public class Reference: CustomStringConvertible {
         if let d = _domain {
             return Self.resolveDomain(domain: d)
         }
-        return nil
+        return Self.resolveDomain(domain: legacyDockerRegistryHost)
     }
 
     private var _path: String
@@ -223,7 +223,8 @@ public class Reference: CustomStringConvertible {
     /// - If the domain is "registry-1.docker.io" or "docker.io" and the path has no repository set,
     ///   it adds a default "library/" repository name.
     public func normalize() {
-        if let domain = self.domain, domain == dockerRegistryHost || domain == legacyDockerRegistryHost {
+        let effDomain = self.domain ?? legacyDockerRegistryHost
+        if effDomain == dockerRegistryHost || effDomain == legacyDockerRegistryHost {
             // Check if the image is being referenced by a named tag.
             // If it is, and a repository is not specified, prefix it with "library/".
             // This needs to be done only if we are using the Docker registry.

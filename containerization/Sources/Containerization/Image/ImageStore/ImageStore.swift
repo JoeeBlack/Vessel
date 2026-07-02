@@ -155,9 +155,10 @@ extension ImageStore {
     ) async throws -> Image {
 
         let matcher = createPlatformMatcher(for: platform)
-        let client = try RegistryClient(reference: reference, auth: auth)
-
         let ref = try Reference.parse(reference)
+        ref.normalize()
+        let client = try RegistryClient(reference: ref.description, auth: auth)
+
         let name = ref.path
         guard let tag = ref.tag ?? ref.digest else {
             throw ContainerizationError(.invalidArgument, message: "Invalid tag/digest for image reference \(reference)")
@@ -200,11 +201,13 @@ extension ImageStore {
             throw ContainerizationError(.internalError, message: "Cannot push image \(reference) with Index media type \(img.mediaType)")
         }
         let ref = try Reference.parse(reference)
+        ref.normalize()
         let name = ref.path
+
         guard let tag = ref.tag ?? ref.digest else {
             throw ContainerizationError(.invalidArgument, message: "Invalid tag/digest for image reference \(reference)")
         }
-        let client = try RegistryClient(reference: reference, auth: auth)
+        let client = try RegistryClient(reference: ref.description, auth: auth)
         let operation = ExportOperation(name: name, tag: tag, contentStore: self.contentStore, client: client, progress: progress)
         try await operation.export(index: img.descriptor, platforms: matcher)
     }
