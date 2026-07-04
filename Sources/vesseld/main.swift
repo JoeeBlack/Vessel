@@ -248,6 +248,35 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
 
 class VesselDaemonDelegate: NSObject, NSXPCListenerDelegate {
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
+        // Enforce explicit authentication of connections to prevent unauthorized local privilege escalation.
+        var token = newConnection.auditToken
+        guard let task = SecTaskCreateWithAuditToken(nil, &token) else {
+            return false
+        }
+
+        // Verify signing identifier matches the expected client app
+        var err: Unmanaged<CFError>?
+        guard let signingIdCF = SecTaskCopySigningIdentifier(task, &err) else {
+            return false
+        }
+
+        let signingId = signingIdCF as String
+        if signingId != "com.vessel.app" {
+            return false
+        }
+
+        // Vessel requires com.apple.security.app-sandbox
+        var hasRequiredEntitlement = false
+        if let entitlementValue = SecTaskCopyValueForEntitlement(task, "com.apple.security.app-sandbox" as CFString, nil) {
+            if let boolValue = entitlementValue as? Bool, boolValue == true {
+                hasRequiredEntitlement = true
+            }
+        }
+
+        if !hasRequiredEntitlement {
+            return false
+        }
+
         let interface = NSXPCInterface(with: VesselXPCProtocol.self)
         let delegateInterface = NSXPCInterface(with: VesselXPCStreamDelegate.self)
 
