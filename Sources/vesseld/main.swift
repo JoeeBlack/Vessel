@@ -40,6 +40,75 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
         return true
     }
 
+    private static func securelyOpenFileForReading(path: String) throws -> FileHandle {
+        let fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        if fd < 0 {
+            throw NSError(domain: "VesselDaemonXPC", code: 404, userInfo: [NSLocalizedDescriptionKey: "Failed to open file safely (it may not exist, or it is a symlink)"])
+        }
+
+        var statInfo = stat()
+        if fstat(fd, &statInfo) < 0 {
+            close(fd)
+            throw NSError(domain: "VesselDaemonXPC", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to stat opened file descriptor"])
+        }
+
+        if (statInfo.st_mode & S_IFMT) != S_IFREG {
+            close(fd)
+            throw NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "File is not a regular file"])
+        }
+
+        var pathBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+        if fcntl(fd, F_GETPATH, &pathBuffer) < 0 {
+            close(fd)
+            throw NSError(domain: "VesselDaemonXPC", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to resolve final path"])
+        }
+
+        let resolvedPath = String(cString: pathBuffer)
+        if !isPathSafe(resolvedPath) {
+            close(fd)
+            throw NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Resolved file path is outside allowed boundaries"])
+        }
+
+        return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+    }
+
+    private static func securelyOpenFileForWriting(path: String) throws -> FileHandle {
+        let fd = open(path, O_WRONLY | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        if fd < 0 {
+            throw NSError(domain: "VesselDaemonXPC", code: 404, userInfo: [NSLocalizedDescriptionKey: "Failed to create or open file safely (it may be a symlink)"])
+        }
+
+        var statInfo = stat()
+        if fstat(fd, &statInfo) < 0 {
+            close(fd)
+            throw NSError(domain: "VesselDaemonXPC", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to stat opened file descriptor"])
+        }
+
+        if (statInfo.st_mode & S_IFMT) != S_IFREG {
+            close(fd)
+            throw NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Target is not a regular file"])
+        }
+
+        var pathBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+        if fcntl(fd, F_GETPATH, &pathBuffer) < 0 {
+            close(fd)
+            throw NSError(domain: "VesselDaemonXPC", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to resolve final path"])
+        }
+
+        let resolvedPath = String(cString: pathBuffer)
+        if !isPathSafe(resolvedPath) {
+            close(fd)
+            throw NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Resolved file path is outside allowed boundaries"])
+        }
+
+        if ftruncate(fd, 0) < 0 {
+            close(fd)
+            throw NSError(domain: "VesselDaemonXPC", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to truncate file securely"])
+        }
+
+        return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+    }
+
     func sendCommand(command: String, payload: Data, reply: @escaping (Data?, Error?) -> Void) {
         
         struct ReplyWrapper: @unchecked Sendable {
@@ -97,7 +166,12 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Invalid or unauthorized path"]))
                         return
                     }
-                    try await daemon.startPod(yamlPath: URL(fileURLWithPath: path))
+                    let handle = try Self.securelyOpenFileForReading(path: path)
+                    guard let yamlData = try? handle.readToEnd(), let yamlString = String(data: yamlData, encoding: .utf8) else {
+                        replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to read yaml configuration securely"]))
+                        return
+                    }
+                    try await daemon.startPod(yamlPath: URL(fileURLWithPath: path), yamlString: yamlString)
                     replyWrapper.reply(Data(), nil)
                 case "startFull":
                     guard let d = dict,
@@ -133,7 +207,8 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Invalid or unauthorized destination path"]))
                         return
                     }
-                    try await daemon.downloadFile(containerId: id, path: path, to: URL(fileURLWithPath: dest))
+                    let handle = try Self.securelyOpenFileForWriting(path: dest)
+                    try await daemon.downloadFile(containerId: id, path: path, to: handle)
                     replyWrapper.reply(Data(), nil)
                 case "uploadFile":
                     guard let id = dict?["id"] as? String, let source = dict?["source"] as? String, let dest = dict?["dest"] as? String else {
@@ -144,7 +219,8 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Invalid or unauthorized source path"]))
                         return
                     }
-                    try await daemon.uploadFile(containerId: id, from: URL(fileURLWithPath: source), to: dest)
+                    let handle = try Self.securelyOpenFileForReading(path: source)
+                    try await daemon.uploadFile(containerId: id, from: handle, to: dest)
                     replyWrapper.reply(Data(), nil)
                 case "pauseAll":
                     try await daemon.pauseAll()

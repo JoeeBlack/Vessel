@@ -18,6 +18,9 @@ public class FileWriter: Containerization.Writer, @unchecked Sendable {
         FileManager.default.createFile(atPath: url.path, contents: nil)
         self.handle = try FileHandle(forWritingTo: url)
     }
+    public init(handle: FileHandle) {
+        self.handle = handle
+    }
     public func write(_ data: Data) throws {
         if #available(macOS 10.15.4, *) {
             try handle.write(contentsOf: data)
@@ -31,15 +34,29 @@ public class FileWriter: Containerization.Writer, @unchecked Sendable {
 }
 
 public class FileReader: Containerization.ReaderStream, @unchecked Sendable {
-    private let url: URL
+    private let url: URL?
+    private let preOpenedHandle: FileHandle?
 
     public init(url: URL) {
         self.url = url
+        self.preOpenedHandle = nil
+    }
+
+    public init(handle: FileHandle) {
+        self.url = nil
+        self.preOpenedHandle = handle
     }
 
     public func read() async throws -> Data? {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
+        let handle: FileHandle
+        if let h = preOpenedHandle {
+            handle = h
+        } else if let u = url {
+            handle = try FileHandle(forReadingFrom: u)
+        } else {
+            throw NSError(domain: "Vessel", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid FileReader state"])
+        }
+        defer { if preOpenedHandle == nil { try? handle.close() } }
 
         var result = Data()
         while true {
@@ -70,8 +87,15 @@ public class FileReader: Containerization.ReaderStream, @unchecked Sendable {
         return AsyncStream { continuation in
             Task {
                 do {
-                    let handle = try FileHandle(forReadingFrom: url)
-                    defer { try? handle.close() }
+                    let handle: FileHandle
+                    if let h = preOpenedHandle {
+                        handle = h
+                    } else if let u = url {
+                        handle = try FileHandle(forReadingFrom: u)
+                    } else {
+                        throw NSError(domain: "Vessel", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid FileReader state"])
+                    }
+                    defer { if preOpenedHandle == nil { try? handle.close() } }
 
                     while true {
                         if #available(macOS 10.15.4, *) {
