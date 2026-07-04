@@ -3,7 +3,43 @@ import Security
 import VesselXPC
 
 class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
-    private let daemon = ContainerDaemon()
+    private let daemon: ContainerDaemon
+    private var connectionTasks: [ObjectIdentifier: [Task<Void, Never>]] = [:]
+    private let lock = NSLock()
+
+    init(daemon: ContainerDaemon) {
+        self.daemon = daemon
+    }
+
+    func cancelTasks(for connection: NSXPCConnection) {
+        let connectionId = ObjectIdentifier(connection)
+        lock.lock()
+        let tasks = connectionTasks.removeValue(forKey: connectionId)
+        lock.unlock()
+
+        tasks?.forEach { $0.cancel() }
+    }
+
+    private func trackTask(_ task: Task<Void, Never>, for connection: NSXPCConnection) {
+        let connectionId = ObjectIdentifier(connection)
+        lock.lock()
+        connectionTasks[connectionId, default: []].append(task)
+        lock.unlock()
+    }
+
+    private func removeTask(_ task: Task<Void, Never>, for connection: NSXPCConnection) {
+        let connectionId = ObjectIdentifier(connection)
+        lock.lock()
+        if var tasks = connectionTasks[connectionId] {
+            tasks.removeAll { $0 == task }
+            if tasks.isEmpty {
+                connectionTasks.removeValue(forKey: connectionId)
+            } else {
+                connectionTasks[connectionId] = tasks
+            }
+        }
+        lock.unlock()
+    }
 
     func ps(reply: @escaping (String) -> Void) {
         reply("vesseld is running securely")
@@ -268,8 +304,19 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
         let wrapper = DelegateWrapper(delegate: delegate)
         
         let daemon = self.daemon
-        Task { [daemon, command, payload, wrapper] in
+        guard let connection = NSXPCConnection.current() else {
+            wrapper.delegate.onComplete(error: NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "No active XPC connection found"]))
+            return
+        }
 
+        let task = Task { [weak self, daemon, command, payload, wrapper] in
+            defer {
+                if let self = self {
+                    // Use a detached task to remove the task from tracking since we cannot reference `task` directly inside its own scope reliably during closure capture,
+                    // though actually we can by storing `task` implicitly via `task` variable if we let it be optional or captured after initialization, but `removeTask` only needs the object reference.
+                    // Instead, we will clean it up properly.
+                }
+            }
             do {
                 let dict = try? JSONSerialization.jsonObject(with: payload) as? [String: Any]
 
@@ -316,31 +363,61 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                     wrapper.delegate.onComplete(error: NSError(domain: "VesselDaemonXPC", code: 404, userInfo: [NSLocalizedDescriptionKey: "Stream command not found: \(command)"]))
                 }
             } catch {
-                wrapper.delegate.onComplete(error: error)
+                if Task.isCancelled {
+                    wrapper.delegate.onComplete(error: NSError(domain: "VesselDaemonXPC", code: -999, userInfo: [NSLocalizedDescriptionKey: "Task cancelled"]))
+                } else {
+                    wrapper.delegate.onComplete(error: error)
+                }
+            }
+        }
+
+        // We capture `task` and remove it from tracking when it completes
+        trackTask(task, for: connection)
+        Task { [weak self, weak connection] in
+            _ = await task.result
+            if let connection = connection {
+                self?.removeTask(task, for: connection)
             }
         }
     }
 }
 
 class VesselDaemonDelegate: NSObject, NSXPCListenerDelegate {
+    private let sharedXPC: VesselDaemonXPC
+
+    init(sharedXPC: VesselDaemonXPC) {
+        self.sharedXPC = sharedXPC
+    }
+
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
 
 
         let interface = NSXPCInterface(with: VesselXPCProtocol.self)
         let delegateInterface = NSXPCInterface(with: VesselXPCStreamDelegate.self)
 
-        // Assuming openStream corresponds to the selector `openStreamWithCommand:payload:delegate:`
-        // Note: The selector in Swift is usually `openStream(command:payload:delegate:)` but let's check
         interface.setInterface(delegateInterface, for: #selector(VesselXPCProtocol.openStream(command:payload:delegate:)), argumentIndex: 2, ofReply: false)
 
         newConnection.exportedInterface = interface
-        newConnection.exportedObject = VesselDaemonXPC()
+        newConnection.exportedObject = sharedXPC
+
+        newConnection.interruptionHandler = { [weak newConnection, weak sharedXPC = self.sharedXPC] in
+            guard let connection = newConnection else { return }
+            sharedXPC?.cancelTasks(for: connection)
+        }
+
+        newConnection.invalidationHandler = { [weak newConnection, weak sharedXPC = self.sharedXPC] in
+            guard let connection = newConnection else { return }
+            sharedXPC?.cancelTasks(for: connection)
+        }
+
         newConnection.resume()
         return true
     }
 }
 
-let delegate = VesselDaemonDelegate()
+let sharedDaemon = ContainerDaemon()
+let sharedXPC = VesselDaemonXPC(daemon: sharedDaemon)
+let delegate = VesselDaemonDelegate(sharedXPC: sharedXPC)
 let listener = NSXPCListener.service()
 listener.delegate = delegate
 listener.resume()
