@@ -25,16 +25,24 @@ final class StreamDelegateProxy: NSObject, VesselXPCStreamDelegate, @unchecked S
 final class ContinuationWrapper<T: Sendable>: @unchecked Sendable {
     var continuation: CheckedContinuation<T, Error>?
     let lock = NSLock()
+    var retainedObjects: [Any] = []
     
     init(_ continuation: CheckedContinuation<T, Error>) {
         self.continuation = continuation
     }
     
+    func retain(_ object: Any) {
+        lock.lock()
+        defer { lock.unlock() }
+        retainedObjects.append(object)
+    }
+
     func resume(returning value: T) {
         lock.lock()
         defer { lock.unlock() }
         continuation?.resume(returning: value)
         continuation = nil
+        retainedObjects.removeAll()
     }
     
     func resume(throwing error: Error) {
@@ -42,6 +50,7 @@ final class ContinuationWrapper<T: Sendable>: @unchecked Sendable {
         defer { lock.unlock() }
         continuation?.resume(throwing: error)
         continuation = nil
+        retainedObjects.removeAll()
     }
 }
 
@@ -217,7 +226,11 @@ public final class ContainerDaemon: @unchecked Sendable {
 
     public func startStatsStream(containerId: String) async throws -> AsyncStream<StatsModel> {
         let data = try JSONSerialization.data(withJSONObject: ["id": containerId])
-        let (stream, continuation) = AsyncStream<StatsModel>.makeStream()
+        var streamContinuation: AsyncStream<StatsModel>.Continuation?
+        let stream = AsyncStream<StatsModel> { cont in
+            streamContinuation = cont
+        }
+        guard let continuation = streamContinuation else { return stream }
 
         let delegate = StreamDelegateProxy(onEvent: { eventData in
             if let stat = try? JSONDecoder().decode(StatsModel.self, from: eventData) {
@@ -226,6 +239,10 @@ public final class ContainerDaemon: @unchecked Sendable {
         }, onComplete: { error in
             continuation.finish()
         })
+
+        continuation.onTermination = { @Sendable _ in
+            _ = delegate
+        }
 
         let localProxy = connection.remoteObjectProxyWithErrorHandler { _ in
             continuation.finish()
@@ -236,8 +253,12 @@ public final class ContainerDaemon: @unchecked Sendable {
     }
 
     public func streamLogs(for id: String) -> AsyncStream<String> {
-        let (stream, continuation) = AsyncStream<String>.makeStream()
+        var streamContinuation: AsyncStream<String>.Continuation?
+        let stream = AsyncStream<String> { cont in
+            streamContinuation = cont
+        }
         let data = try! JSONSerialization.data(withJSONObject: ["id": id])
+        guard let continuation = streamContinuation else { return stream }
 
         let delegate = StreamDelegateProxy(onEvent: { eventData in
             if let str = String(data: eventData, encoding: .utf8) {
@@ -246,6 +267,10 @@ public final class ContainerDaemon: @unchecked Sendable {
         }, onComplete: { error in
             continuation.finish()
         })
+
+        continuation.onTermination = { @Sendable _ in
+            _ = delegate
+        }
 
         let localProxy = connection.remoteObjectProxyWithErrorHandler { _ in
             continuation.finish()
@@ -296,6 +321,8 @@ public final class ContainerDaemon: @unchecked Sendable {
                     wrapper.resume(returning: ())
                 }
             })
+
+            wrapper.retain(delegate)
 
             let localProxy = connection.remoteObjectProxyWithErrorHandler { error in
                 wrapper.resume(throwing: error)
