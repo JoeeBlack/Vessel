@@ -260,11 +260,11 @@ public final class ContainerDaemon: @unchecked Sendable {
         }
     }
     
-    public func startPod(yamlPath: URL) async throws {
+    public func startPod(yamlPath: URL, yamlString: String? = nil) async throws {
         // Read yaml
-        let yamlString = try String(contentsOf: yamlPath, encoding: .utf8)
+        let finalYamlString = try yamlString ?? String(contentsOf: yamlPath, encoding: .utf8)
         let projectName = yamlPath.deletingPathExtension().lastPathComponent
-        let project = try ComposeParser.parse(yaml: yamlString, projectName: projectName)
+        let project = try ComposeParser.parse(yaml: finalYamlString, projectName: projectName)
         
         // 🛡️ Sentinel: Ensure App Sandbox access to host paths using Security-Scoped Bookmarks
         for service in project.services {
@@ -908,8 +908,21 @@ public final class ContainerDaemon: @unchecked Sendable {
         try? writer.close()
     }
 
+    public func downloadFile(containerId: String, path: String, to destinationHandle: FileHandle) async throws {
+        let writer = FileWriter(handle: destinationHandle)
+        let process = try await exec(containerId: containerId, args: ["cat", path], stdout: writer)
+        _ = try await process.wait()
+        try? writer.close()
+    }
+
     public func uploadFile(containerId: String, from sourceURL: URL, to destinationPath: String) async throws {
         let reader = FileReader(url: sourceURL)
+        let process = try await exec(containerId: containerId, args: ["/bin/sh", "-c", "cat > \"$1\"", "--", destinationPath], stdin: reader)
+        _ = try await process.wait()
+    }
+
+    public func uploadFile(containerId: String, from sourceHandle: FileHandle, to destinationPath: String) async throws {
+        let reader = FileReader(handle: sourceHandle)
         let process = try await exec(containerId: containerId, args: ["/bin/sh", "-c", "cat > \"$1\"", "--", destinationPath], stdin: reader)
         _ = try await process.wait()
     }
