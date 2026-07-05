@@ -274,7 +274,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             continuation.finish()
         })
 
-        continuation.onTermination = { [weak self, delegate] @Sendable _ in
+        continuation.onTermination = { [weak self, delegate] _ in
             self?.untrackDelegate(delegate)
         }
 
@@ -305,7 +305,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             continuation.finish()
         })
 
-        continuation.onTermination = { [weak self, delegate] @Sendable _ in
+        continuation.onTermination = { [weak self, delegate] _ in
             self?.untrackDelegate(delegate)
         }
 
@@ -345,7 +345,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let wrapper = ContinuationWrapper(continuation)
 
-            let delegate = StreamDelegateProxy(onEvent: { [weak self] eventData in
+            let delegate = StreamDelegateProxy(onEvent: { eventData in
                 if let dict = try? JSONSerialization.jsonObject(with: eventData) as? [String: Any] {
                     if let pct = dict["progress"] as? Double {
                         progress(pct)
@@ -354,7 +354,7 @@ public final class ContainerDaemon: @unchecked Sendable {
                         wrapper.resume(returning: ())
                     }
                 }
-            }, onComplete: { [weak self] error in
+            }, onComplete: { error in
                 if let error = error {
                     wrapper.resume(throwing: error)
                 } else {
