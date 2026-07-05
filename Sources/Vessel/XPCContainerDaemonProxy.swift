@@ -56,9 +56,11 @@ final class ContinuationWrapper<T: Sendable>: @unchecked Sendable {
 
 public final class ContainerDaemon: @unchecked Sendable {
     private let connection: NSXPCConnection
+    private let connectionLock = NSLock()
+    private var activeStreamDelegates: [StreamDelegateProxy] = []
 
     public init() {
-        connection = NSXPCConnection(machServiceName: "com.vessel.daemon.xpc", options: [])
+        connection = NSXPCConnection(serviceName: "com.vessel.daemon")
         connection.remoteObjectInterface = NSXPCInterface(with: VesselXPCProtocol.self)
 
         connection.remoteObjectInterface = NSXPCInterface(with: VesselXPCProtocol.self)
@@ -66,7 +68,39 @@ public final class ContainerDaemon: @unchecked Sendable {
 
         connection.remoteObjectInterface?.setInterface(streamInterface, for: #selector(VesselXPCProtocol.openStream(command:payload:delegate:)), argumentIndex: 2, ofReply: false)
 
+        connection.interruptionHandler = { [weak self] in
+            self?.handleConnectionDrop()
+        }
+
+        connection.invalidationHandler = { [weak self] in
+            self?.handleConnectionDrop()
+        }
+
         connection.resume()
+    }
+
+    private func handleConnectionDrop() {
+        connectionLock.lock()
+        let delegates = activeStreamDelegates
+        activeStreamDelegates.removeAll()
+        connectionLock.unlock()
+
+        let error = NSError(domain: "Vessel", code: 503, userInfo: [NSLocalizedDescriptionKey: "XPC Connection lost"])
+        for delegate in delegates {
+            delegate.onComplete(error: error)
+        }
+    }
+
+    private func trackDelegate(_ delegate: StreamDelegateProxy) {
+        connectionLock.lock()
+        activeStreamDelegates.append(delegate)
+        connectionLock.unlock()
+    }
+
+    private func untrackDelegate(_ delegate: StreamDelegateProxy) {
+        connectionLock.lock()
+        activeStreamDelegates.removeAll { $0 === delegate }
+        connectionLock.unlock()
     }
 
     private var proxy: VesselXPCProtocol {
@@ -240,11 +274,14 @@ public final class ContainerDaemon: @unchecked Sendable {
             continuation.finish()
         })
 
-        continuation.onTermination = { @Sendable _ in
-            _ = delegate
+        continuation.onTermination = { [weak self, delegate] @Sendable _ in
+            self?.untrackDelegate(delegate)
         }
 
-        let localProxy = connection.remoteObjectProxyWithErrorHandler { _ in
+        self.trackDelegate(delegate)
+
+        let localProxy = connection.remoteObjectProxyWithErrorHandler { [weak self] _ in
+            self?.untrackDelegate(delegate)
             continuation.finish()
         } as! VesselXPCProtocol
 
@@ -268,11 +305,14 @@ public final class ContainerDaemon: @unchecked Sendable {
             continuation.finish()
         })
 
-        continuation.onTermination = { @Sendable _ in
-            _ = delegate
+        continuation.onTermination = { [weak self, delegate] @Sendable _ in
+            self?.untrackDelegate(delegate)
         }
 
-        let localProxy = connection.remoteObjectProxyWithErrorHandler { _ in
+        self.trackDelegate(delegate)
+
+        let localProxy = connection.remoteObjectProxyWithErrorHandler { [weak self] _ in
+            self?.untrackDelegate(delegate)
             continuation.finish()
         } as! VesselXPCProtocol
 
@@ -305,7 +345,7 @@ public final class ContainerDaemon: @unchecked Sendable {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let wrapper = ContinuationWrapper(continuation)
 
-            let delegate = StreamDelegateProxy(onEvent: { eventData in
+            let delegate = StreamDelegateProxy(onEvent: { [weak self] eventData in
                 if let dict = try? JSONSerialization.jsonObject(with: eventData) as? [String: Any] {
                     if let pct = dict["progress"] as? Double {
                         progress(pct)
@@ -314,7 +354,7 @@ public final class ContainerDaemon: @unchecked Sendable {
                         wrapper.resume(returning: ())
                     }
                 }
-            }, onComplete: { error in
+            }, onComplete: { [weak self] error in
                 if let error = error {
                     wrapper.resume(throwing: error)
                 } else {
@@ -323,8 +363,10 @@ public final class ContainerDaemon: @unchecked Sendable {
             })
 
             wrapper.retain(delegate)
+            self.trackDelegate(delegate)
 
-            let localProxy = connection.remoteObjectProxyWithErrorHandler { error in
+            let localProxy = connection.remoteObjectProxyWithErrorHandler { [weak self] error in
+                self?.untrackDelegate(delegate)
                 wrapper.resume(throwing: error)
             } as! VesselXPCProtocol
 
