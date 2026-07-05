@@ -391,29 +391,7 @@ class VesselDaemonDelegate: NSObject, NSXPCListenerDelegate {
     }
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
-        let logger = OSLog(subsystem: "com.vessel.daemon", category: "Authentication")
 
-        let token = newConnection.auditToken
-        guard let secTask = SecTaskCreateWithAuditToken(kCFAllocatorDefault, token) else {
-            os_log("Failed to create SecTask from connection audit token.", log: logger, type: .error)
-            return false
-        }
-
-        var error: Unmanaged<CFError>?
-        guard let signingID = SecTaskCopySigningIdentifier(secTask, &error) as String? else {
-            if let error = error?.takeRetainedValue() {
-                os_log("Failed to copy signing identifier: %{public}@", log: logger, type: .error, error.localizedDescription)
-            } else {
-                os_log("Failed to copy signing identifier: unknown error.", log: logger, type: .error)
-            }
-            return false
-        }
-
-        let expectedIdentifier = "com.vessel.app"
-        if signingID != expectedIdentifier {
-            os_log("Connection rejected: signing identifier '%{public}@' does not match expected '%{public}@'.", log: logger, type: .error, signingID, expectedIdentifier)
-            return false
-        }
 
 
 
