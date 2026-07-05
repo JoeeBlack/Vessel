@@ -101,7 +101,9 @@ public final class ArchiveWriter {
 extension ArchiveWriter {
     fileprivate func open() throws {
         guard let underlying = underlying else { throw ArchiveError.noUnderlyingArchive }
-        // TODO: to be or not to be retained, that is the question
+        // We pass a retained reference to `self` to libarchive. This prevents premature
+        // deallocation of `ArchiveWriter` while libarchive is processing callbacks.
+        // We must balance this by explicitly releasing the reference in the designated free callback.
         let pointerToSelf = Unmanaged.passRetained(self).toOpaque()
 
         let res = archive_write_open2(
@@ -167,15 +169,16 @@ extension ArchiveWriter {
                     guard let pointerToSelf = pointerToSelf else {
                         throw ArchiveError.noArchiveInCallback
                     }
+
                     let unmanaged = Unmanaged<ArchiveWriter>.fromOpaque(pointerToSelf)
+                    // Ensure the retained reference is always released when the callback finishes
+                    defer { unmanaged.release() }
+
                     let archive = unmanaged.takeUnretainedValue()
                     guard let delegate = archive.delegate else {
-                        unmanaged.release()
                         throw ArchiveError.noDelegateConfigured
                     }
                     delegate.free(archive: archive)
-
-                    unmanaged.release()
                     return ARCHIVE_OK
                 } catch {
                     archive_set_error_wrapper(underlying, ARCHIVE_FATAL, "\(error)")
