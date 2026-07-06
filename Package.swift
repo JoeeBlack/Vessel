@@ -10,7 +10,7 @@ let package = Package(
         .package(path: "./containerization"),
         .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.0.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
-        .package(url: "https://github.com/apple/swift-system.git", exact: "1.6.5"),
+        .package(url: "https://github.com/apple/swift-system.git", exact: "1.7.1"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
         .package(url: "https://github.com/apple/swift-configuration.git", exact: "1.1.0")
     ],
@@ -35,7 +35,7 @@ let package = Package(
                 .unsafeFlags(["-whole-module-optimization"], .when(configuration: .release))
             ],
             linkerSettings: [
-                .unsafeFlags(["-Xlinker", "-dead_strip"])
+                .unsafeFlags(["-Xlinker", "-dead_strip"], .when(configuration: .release))
             ]
         ),
         .executableTarget(
@@ -71,7 +71,13 @@ let package = Package(
         ),
         .executableTarget(
             name: "VesselHelper",
-            path: "Sources/VesselHelper"
+            path: "Sources/VesselHelper",
+            swiftSettings: [
+                .unsafeFlags(["-whole-module-optimization"], .when(configuration: .release))
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-dead_strip"], .when(configuration: .release))
+            ]
         )
     ]
 )
