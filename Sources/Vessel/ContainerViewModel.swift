@@ -7,18 +7,22 @@ import UserNotifications
 import AppKit
 import OSLog
 
+private let logQueue = DispatchQueue(label: "com.vessel.app.logQueue")
+
 func viewModelLog(_ msg: String) {
     let logFile = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/daemon.log")
     let text = "[\(Date())] \(msg)\n"
     if let data = text.data(using: .utf8) {
-        if let handle = try? FileHandle(forWritingTo: logFile) {
-            handle.seekToEndOfFile()
-            handle.write(data)
-            handle.closeFile()
-        } else {
-            // Security Enhancement: Use atomic writes and restrict permissions for log files
-            try? data.write(to: logFile, options: [.atomic])
-            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: logFile.path)
+        logQueue.async {
+            if let handle = try? FileHandle(forWritingTo: logFile) {
+                handle.seekToEndOfFile()
+                handle.write(data)
+                handle.closeFile()
+            } else {
+                // Security Enhancement: Use atomic writes and restrict permissions for log files
+                try? data.write(to: logFile, options: [.atomic])
+                try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: logFile.path)
+            }
         }
     }
 }

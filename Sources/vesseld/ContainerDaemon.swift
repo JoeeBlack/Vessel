@@ -1018,11 +1018,29 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
 }    
 
     public func pauseAll() async throws {
-        // Pause all running linux containers
+        // Pause all running linux containers concurrently
+        await withTaskGroup(of: Void.self) { group in
+            for (_, active) in activeContainers {
+                if let linux = active.linux, active.vessel.status == .running {
+                    group.addTask {
+                        try? await linux.pause()
+                    }
+                }
+            }
+            for (_, activePod) in activePods {
+                if activePod.pod.status == .running {
+                    for (_, linux) in activePod.linuxContainers {
+                        group.addTask {
+                            try? await linux.pause()
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update states after pauses are initiated/completed
         for (id, active) in activeContainers {
             if let linux = active.linux, active.vessel.status == .running {
-                try? await linux.pause()
-
                 let vessel = active.vessel
                 let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .paused, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: vessel.exitStatus, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
                 activeContainers[id] = ActiveContainer(vessel: updated, linux: linux, logStream: active.logStream, portForwarders: active.portForwarders, netService: active.netService)
@@ -1030,9 +1048,6 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         }
         for (id, activePod) in activePods {
             if activePod.pod.status == .running {
-                for (_, linux) in activePod.linuxContainers {
-                    try? await linux.pause()
-                }
                 let pod = activePod.pod
                 let updatedContainers = pod.containers.map {
                     let container = $0
