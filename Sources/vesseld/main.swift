@@ -391,9 +391,43 @@ class VesselDaemonDelegate: NSObject, NSXPCListenerDelegate {
     }
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
+        // Enforce XPC Authentication to prevent unauthorized privilege escalation
+        var token = newConnection.auditToken
+        let tokenData = Data(bytes: &token, count: MemoryLayout.size(ofValue: token))
+        guard let secTask = SecTaskCreateWithAuditToken(kCFAllocatorDefault, token) else {
+            return false
+        }
 
+        var error: Unmanaged<CFError>?
+        guard let signingID = SecTaskCopySigningIdentifier(secTask, &error) as String? else {
+            if let error = error {
+                _ = error.takeRetainedValue() // Transfer ownership to ARC to prevent memory leaks
+            }
+            return false
+        }
 
+        // Expected client identifier and Code Requirement to ensure legitimate caller
+        guard signingID == "com.vessel.app" else {
+            return false
+        }
 
+        let requirementString = "identifier \"com.vessel.app\" and anchor apple generic"
+        var requirement: SecRequirement?
+        guard SecRequirementCreateWithString(requirementString as CFString, SecCSFlags(), &requirement) == errSecSuccess,
+              let req = requirement else {
+            return false
+        }
+
+        var code: SecCode?
+        let attributes = [kSecGuestAttributeAudit: tokenData] as CFDictionary
+        guard SecCodeCopyGuestWithAttributes(nil, attributes, SecCSFlags(), &code) == errSecSuccess,
+              let secCode = code else {
+            return false
+        }
+
+        if SecCodeCheckValidity(secCode, SecCSFlags(), req) != errSecSuccess {
+            return false
+        }
 
         let interface = NSXPCInterface(with: VesselXPCProtocol.self)
         let delegateInterface = NSXPCInterface(with: VesselXPCStreamDelegate.self)
