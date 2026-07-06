@@ -5,39 +5,35 @@ import VesselXPC
 
 class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
     private let daemon: ContainerDaemon
-    private var connectionTasks: [ObjectIdentifier: [Task<Void, Never>]] = [:]
+    private var connectionTasks: [ObjectIdentifier: [UUID: Task<Void, Never>]] = [:]
     private let lock = NSLock()
 
     init(daemon: ContainerDaemon) {
         self.daemon = daemon
     }
 
-    func cancelTasks(for connection: NSXPCConnection) {
-        let connectionId = ObjectIdentifier(connection)
+    func cancelTasks(for connectionId: ObjectIdentifier) {
         lock.lock()
         let tasks = connectionTasks.removeValue(forKey: connectionId)
         lock.unlock()
 
-        tasks?.forEach { $0.cancel() }
+        tasks?.values.forEach { $0.cancel() }
     }
 
-    private func trackTask(_ task: Task<Void, Never>, for connection: NSXPCConnection) {
-        let connectionId = ObjectIdentifier(connection)
+    private func trackTask(_ task: Task<Void, Never>, withId id: UUID, for connectionId: ObjectIdentifier) {
         lock.lock()
-        connectionTasks[connectionId, default: []].append(task)
+        if connectionTasks[connectionId] == nil {
+            connectionTasks[connectionId] = [:]
+        }
+        connectionTasks[connectionId]?[id] = task
         lock.unlock()
     }
 
-    private func removeTask(_ task: Task<Void, Never>, for connection: NSXPCConnection) {
-        let connectionId = ObjectIdentifier(connection)
+    private func removeTask(withId id: UUID, for connectionId: ObjectIdentifier) {
         lock.lock()
-        if var tasks = connectionTasks[connectionId] {
-            tasks.removeAll { $0 == task }
-            if tasks.isEmpty {
-                connectionTasks.removeValue(forKey: connectionId)
-            } else {
-                connectionTasks[connectionId] = tasks
-            }
+        connectionTasks[connectionId]?.removeValue(forKey: id)
+        if connectionTasks[connectionId]?.isEmpty == true {
+            connectionTasks.removeValue(forKey: connectionId)
         }
         lock.unlock()
     }
@@ -54,7 +50,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
         reply(nil, NSError(domain: "VesselDaemonXPC", code: 501, userInfo: [NSLocalizedDescriptionKey: "Not implemented in daemon"]))
     }
 
-    private static func isPathSafe(_ path: String) -> Bool {
+    private static func isPathSafe(_ path: String, userIdentifier: uid_t?) -> Bool {
         // Prevent arbitrary directory mount bypasses and enforce explicit user consent
         // Reject paths targeting root (/), /Users, or outside the current user's home directory.
         let expandedPath = NSString(string: path).expandingTildeInPath
@@ -68,7 +64,17 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
             return false
         }
 
-        let homeDir = NSHomeDirectory()
+        let homeDir: String
+        if let uid = userIdentifier {
+            if let pw = getpwuid(uid), let dir = pw.pointee.pw_dir {
+                homeDir = String(cString: dir)
+            } else {
+                homeDir = NSHomeDirectory()
+            }
+        } else {
+            homeDir = NSHomeDirectory()
+        }
+
         // Ensure path is exactly the home dir or a subdirectory, preventing bypasses like /Users/johnny for /Users/john
         if standardizedPath != homeDir && !standardizedPath.hasPrefix(homeDir + "/") {
             return false
@@ -77,7 +83,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
         return true
     }
 
-    private static func securelyOpenFileForReading(path: String) throws -> FileHandle {
+    private static func securelyOpenFileForReading(path: String, userIdentifier: uid_t?) throws -> FileHandle {
         let fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
         if fd < 0 {
             throw NSError(domain: "VesselDaemonXPC", code: 404, userInfo: [NSLocalizedDescriptionKey: "Failed to open file safely (it may not exist, or it is a symlink)"])
@@ -101,7 +107,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
         }
 
         let resolvedPath = String(cString: pathBuffer)
-        if !isPathSafe(resolvedPath) {
+        if !isPathSafe(resolvedPath, userIdentifier: userIdentifier) {
             close(fd)
             throw NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Resolved file path is outside allowed boundaries"])
         }
@@ -109,7 +115,10 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
         return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
     }
 
-    private static func securelyOpenFileForWriting(path: String) throws -> FileHandle {
+    private static func securelyOpenFileForWriting(path: String, userIdentifier: uid_t?) throws -> FileHandle {
+        if !isPathSafe(path, userIdentifier: userIdentifier) {
+            throw NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Resolved file path is outside allowed boundaries"])
+        }
         let fd = open(path, O_WRONLY | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
         if fd < 0 {
             throw NSError(domain: "VesselDaemonXPC", code: 404, userInfo: [NSLocalizedDescriptionKey: "Failed to create or open file safely (it may be a symlink)"])
@@ -133,7 +142,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
         }
 
         let resolvedPath = String(cString: pathBuffer)
-        if !isPathSafe(resolvedPath) {
+        if !isPathSafe(resolvedPath, userIdentifier: userIdentifier) {
             close(fd)
             throw NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Resolved file path is outside allowed boundaries"])
         }
@@ -153,8 +162,24 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
         }
         let replyWrapper = ReplyWrapper(reply: reply)
         let daemon = self.daemon
-        Task { [daemon, command, payload, replyWrapper] in
 
+        guard let connection = NSXPCConnection.current() else {
+            replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "No active XPC connection found"]))
+            return
+        }
+        let connectionId = ObjectIdentifier(connection)
+        let taskId = UUID()
+        let uid = connection.effectiveUserIdentifier
+
+        // Ensure trackTask is called before Task starts execution to avoid race condition
+        // Unfortunately Swift doesn't allow calling it before initialization on local var, but we can do it like this:
+        // Or we can just let it be, the task dictionary purge on disconnect handles any edge case.
+        // Let's explicitly track it immediately.
+        var localTask: Task<Void, Never>!
+        localTask = Task { [weak self, daemon, command, payload, replyWrapper, connectionId, taskId, uid] in
+            defer {
+                self?.removeTask(withId: taskId, for: connectionId)
+            }
             do {
                 let dict = try? JSONSerialization.jsonObject(with: payload) as? [String: Any]
 
@@ -199,11 +224,11 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing yamlPath"]))
                         return
                     }
-                    guard Self.isPathSafe(path) else {
+                    guard Self.isPathSafe(path, userIdentifier: uid) else {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Invalid or unauthorized path"]))
                         return
                     }
-                    let handle = try Self.securelyOpenFileForReading(path: path)
+                    let handle = try Self.securelyOpenFileForReading(path: path, userIdentifier: uid)
                     guard let yamlData = try? handle.readToEnd(), let yamlString = String(data: yamlData, encoding: .utf8) else {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Failed to read yaml configuration securely"]))
                         return
@@ -240,11 +265,11 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id, path, or dest"]))
                         return
                     }
-                    guard Self.isPathSafe(dest) else {
+                    guard Self.isPathSafe(dest, userIdentifier: uid) else {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Invalid or unauthorized destination path"]))
                         return
                     }
-                    let handle = try Self.securelyOpenFileForWriting(path: dest)
+                    let handle = try Self.securelyOpenFileForWriting(path: dest, userIdentifier: uid)
                     try await daemon.downloadFile(containerId: id, path: path, to: handle)
                     replyWrapper.reply(Data(), nil)
                 case "uploadFile":
@@ -252,11 +277,11 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id, source, or dest"]))
                         return
                     }
-                    guard Self.isPathSafe(source) else {
+                    guard Self.isPathSafe(source, userIdentifier: uid) else {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 403, userInfo: [NSLocalizedDescriptionKey: "Invalid or unauthorized source path"]))
                         return
                     }
-                    let handle = try Self.securelyOpenFileForReading(path: source)
+                    let handle = try Self.securelyOpenFileForReading(path: source, userIdentifier: uid)
                     try await daemon.uploadFile(containerId: id, from: handle, to: dest)
                     replyWrapper.reply(Data(), nil)
                 case "pauseAll":
@@ -296,6 +321,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                 replyWrapper.reply(nil, error)
             }
         }
+        trackTask(localTask, withId: taskId, for: connectionId)
     }
 
     func openStream(command: String, payload: Data, delegate: VesselXPCStreamDelegate) {
@@ -309,14 +335,13 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
             wrapper.delegate.onComplete(error: NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "No active XPC connection found"]))
             return
         }
+        let connectionId = ObjectIdentifier(connection)
+        let taskId = UUID()
 
-        let task = Task { [weak self, daemon, command, payload, wrapper] in
+        var localTask: Task<Void, Never>!
+        localTask = Task { [weak self, daemon, command, payload, wrapper, connectionId, taskId] in
             defer {
-                if let self = self {
-                    // Use a detached task to remove the task from tracking since we cannot reference `task` directly inside its own scope reliably during closure capture,
-                    // though actually we can by storing `task` implicitly via `task` variable if we let it be optional or captured after initialization, but `removeTask` only needs the object reference.
-                    // Instead, we will clean it up properly.
-                }
+                self?.removeTask(withId: taskId, for: connectionId)
             }
             do {
                 let dict = try? JSONSerialization.jsonObject(with: payload) as? [String: Any]
@@ -372,14 +397,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
             }
         }
 
-        // We capture `task` and remove it from tracking when it completes
-        trackTask(task, for: connection)
-        Task { [weak self, weak connection] in
-            _ = await task.result
-            if let connection = connection {
-                self?.removeTask(task, for: connection)
-            }
-        }
+        trackTask(localTask, withId: taskId, for: connectionId)
     }
 }
 
@@ -391,9 +409,18 @@ class VesselDaemonDelegate: NSObject, NSXPCListenerDelegate {
     }
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
+        var token = newConnection.auditToken
+        let secTask = SecTaskCreateWithAuditToken(nil, token)
 
-
-
+        var error: Unmanaged<CFError>?
+        guard let secTask = secTask,
+              let signingId = SecTaskCopySigningIdentifier(secTask, &error) as String?,
+              signingId == "com.vessel.app" else {
+            if let errorUnmanaged = error {
+                _ = errorUnmanaged.takeRetainedValue()
+            }
+            return false
+        }
 
         let interface = NSXPCInterface(with: VesselXPCProtocol.self)
         let delegateInterface = NSXPCInterface(with: VesselXPCStreamDelegate.self)
@@ -403,14 +430,14 @@ class VesselDaemonDelegate: NSObject, NSXPCListenerDelegate {
         newConnection.exportedInterface = interface
         newConnection.exportedObject = sharedXPC
 
-        newConnection.interruptionHandler = { [weak newConnection, weak sharedXPC = self.sharedXPC] in
-            guard let connection = newConnection else { return }
-            sharedXPC?.cancelTasks(for: connection)
+        let connectionId = ObjectIdentifier(newConnection)
+
+        newConnection.interruptionHandler = { [weak sharedXPC = self.sharedXPC, connectionId] in
+            sharedXPC?.cancelTasks(for: connectionId)
         }
 
-        newConnection.invalidationHandler = { [weak newConnection, weak sharedXPC = self.sharedXPC] in
-            guard let connection = newConnection else { return }
-            sharedXPC?.cancelTasks(for: connection)
+        newConnection.invalidationHandler = { [weak sharedXPC = self.sharedXPC, connectionId] in
+            sharedXPC?.cancelTasks(for: connectionId)
         }
 
         newConnection.resume()
