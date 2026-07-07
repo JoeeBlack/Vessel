@@ -47,14 +47,18 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
     }
 
     func scanImage(reference: String, reply: @escaping (Data?, Error?) -> Void) {
+        struct ReplyWrapper: @unchecked Sendable {
+            let reply: (Data?, Error?) -> Void
+        }
+        let replyWrapper = ReplyWrapper(reply: reply)
         let scanner = ScannerService()
         Task {
             do {
                 let vulns = try await scanner.scanImage(reference: reference)
                 let data = try JSONEncoder().encode(vulns)
-                reply(data, nil)
+                replyWrapper.reply(data, nil)
             } catch {
-                reply(nil, error)
+                replyWrapper.reply(nil, error)
             }
         }
     }
