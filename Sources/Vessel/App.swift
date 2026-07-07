@@ -2,6 +2,7 @@
 import AppKit
 import SwiftUI
 import UserNotifications
+import VesselXPC
 
 #if os(macOS)
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
