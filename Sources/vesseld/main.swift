@@ -249,7 +249,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                     daemon.removeDomainRule(id: uuid)
                     replyWrapper.reply(Data(), nil)
                 case "startPod":
-                    self.resolveBookmarks(from: dict)
+                    self?.resolveBookmarks(from: dict)
                     guard let path = dict?["yamlPath"] as? String else {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing yamlPath"]))
                         return
