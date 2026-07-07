@@ -266,7 +266,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                     try await daemon.startPod(yamlPath: URL(fileURLWithPath: path), yamlString: yamlString)
                     replyWrapper.reply(Data(), nil)
                 case "startFull":
-                    self.resolveBookmarks(from: dict)
+                    self?.resolveBookmarks(from: dict)
                     guard let d = dict,
                           let id = d["containerId"] as? String,
                           let configDict = d["config"] else {
