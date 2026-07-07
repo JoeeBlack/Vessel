@@ -147,13 +147,6 @@ public actor ScannerService {
         }
 
         return try await withCheckedThrowingContinuation { continuation in
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: ScannerError.executionFailed(error.localizedDescription))
-                return
-            }
-
             process.terminationHandler = { p in
                 stdoutPipe.fileHandleForReading.readabilityHandler = nil
                 stderrPipe.fileHandleForReading.readabilityHandler = nil
@@ -191,6 +184,13 @@ public actor ScannerService {
                         continuation.resume(throwing: ScannerError.decodingFailed(error))
                     }
                 }
+            }
+
+            do {
+                try process.run()
+            } catch {
+                continuation.resume(throwing: ScannerError.executionFailed(error.localizedDescription))
+                return
             }
         }
     }

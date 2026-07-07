@@ -108,7 +108,7 @@ class ImagesViewModel: @unchecked Sendable {
                 let rawRef = "\(image.repository):\(image.tag)"
                 let ref = await MainActor.run { self.normalize(reference: rawRef) }
 
-                let connection = NSXPCConnection(machServiceName: "com.vessel.cctl.xpc")
+                let connection = NSXPCConnection(serviceName: "com.vessel.daemon")
                 connection.remoteObjectInterface = NSXPCInterface(with: VesselXPCProtocol.self)
                 connection.resume()
 

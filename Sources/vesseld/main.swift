@@ -47,7 +47,16 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
     }
 
     func scanImage(reference: String, reply: @escaping (Data?, Error?) -> Void) {
-        reply(nil, NSError(domain: "VesselDaemonXPC", code: 501, userInfo: [NSLocalizedDescriptionKey: "Not implemented in daemon"]))
+        let scanner = ScannerService()
+        Task {
+            do {
+                let vulns = try await scanner.scanImage(reference: reference)
+                let data = try JSONEncoder().encode(vulns)
+                reply(data, nil)
+            } catch {
+                reply(nil, error)
+            }
+        }
     }
 
     private static func isPathSafe(_ path: String, userIdentifier: uid_t?) -> Bool {
@@ -155,6 +164,26 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
         return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
     }
 
+    private func resolveBookmarks(from payload: [String: Any]?) {
+        guard let bookmarksDict = payload?["bookmarks"] as? [String: String] else { return }
+
+        for (path, base64String) in bookmarksDict {
+            if let data = Data(base64Encoded: base64String) {
+                var isStale = false
+                do {
+                    let url = try URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
+                    if url.startAccessingSecurityScopedResource() {
+                        print("vesseld: Successfully accessed bookmark for \(path)")
+                    } else {
+                        print("vesseld: Failed to access bookmark for \(path)")
+                    }
+                } catch {
+                    print("vesseld: Error resolving bookmark for \(path): \(error)")
+                }
+            }
+        }
+    }
+
     func sendCommand(command: String, payload: Data, reply: @escaping (Data?, Error?) -> Void) {
         
         struct ReplyWrapper: @unchecked Sendable {
@@ -220,6 +249,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                     daemon.removeDomainRule(id: uuid)
                     replyWrapper.reply(Data(), nil)
                 case "startPod":
+                    self.resolveBookmarks(from: dict)
                     guard let path = dict?["yamlPath"] as? String else {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing yamlPath"]))
                         return
@@ -236,6 +266,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                     try await daemon.startPod(yamlPath: URL(fileURLWithPath: path), yamlString: yamlString)
                     replyWrapper.reply(Data(), nil)
                 case "startFull":
+                    self.resolveBookmarks(from: dict)
                     guard let d = dict,
                           let id = d["containerId"] as? String,
                           let configDict = d["config"] else {
@@ -247,6 +278,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                     try await daemon.start(containerId: id, config: config)
                     replyWrapper.reply(Data(), nil)
                 case "start":
+                    self.resolveBookmarks(from: dict)
                     guard let id = dict?["id"] as? String else {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id"]))
                         return

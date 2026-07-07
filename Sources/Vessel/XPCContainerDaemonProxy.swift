@@ -226,23 +226,85 @@ public final class ContainerDaemon: @unchecked Sendable {
     }
 
     public func startPod(yamlPath: URL) async throws {
-        _ = try await sendCommandRaw(command: "startPod", payload: ["yamlPath": yamlPath.path])
+        // Read yaml to parse volumes and resolve bookmarks
+        var bookmarks: [String: Data] = [:]
+        do {
+            let yamlString = try String(contentsOf: yamlPath, encoding: .utf8)
+            let projectName = yamlPath.deletingPathExtension().lastPathComponent
+            let project = try ComposeParser.parse(yaml: yamlString, projectName: projectName)
+
+            for service in project.services {
+                for volumeStr in service.volumes {
+                    let parts = volumeStr.split(separator: ":", maxSplits: 1).map(String.init)
+                    if parts.count == 2 {
+                        let hostPath = parts[0]
+                        if hostPath.hasPrefix("/") || hostPath.hasPrefix("~") || hostPath.hasPrefix(".") {
+                            var actualHostPath = NSString(string: hostPath).expandingTildeInPath
+                            if hostPath.hasPrefix("./") {
+                                actualHostPath = yamlPath.deletingLastPathComponent().path + "/" + String(hostPath.dropFirst(2))
+                            } else if hostPath.hasPrefix("../") {
+                                let absUrl = URL(fileURLWithPath: hostPath, relativeTo: yamlPath.deletingLastPathComponent())
+                                actualHostPath = absUrl.path
+                            } else if hostPath == "." {
+                                actualHostPath = yamlPath.deletingLastPathComponent().path
+                            }
+                            let resolvedHostPath = URL(fileURLWithPath: actualHostPath).resolvingSymlinksInPath().path
+                            try await BookmarkManager.shared.resolveAndAccess(path: resolvedHostPath)
+                            if let data = BookmarkManager.shared.getBookmarkData(for: resolvedHostPath) {
+                                bookmarks[resolvedHostPath] = data
+                            }
+                        }
+                    }
+                }
+            }
+        } catch {
+            print("Failed to parse Compose for volumes: \(error)")
+        }
+
+        let bookmarksDict = bookmarks.mapValues { $0.base64EncodedString() }
+        _ = try await sendCommandRaw(command: "startPod", payload: ["yamlPath": yamlPath.path, "bookmarks": bookmarksDict])
     }
 
     public func start(containerId: String, config: ContainerStartConfiguration) async throws {
+        // 🛡️ Sentinel: Ensure App Sandbox access to host paths using Security-Scoped Bookmarks
+        var bookmarks: [String: Data] = [:]
+        for volume in config.volumes {
+            try await BookmarkManager.shared.resolveAndAccess(path: volume.host)
+            if let data = BookmarkManager.shared.getBookmarkData(for: volume.host) {
+                bookmarks[volume.host] = data
+            }
+        }
+        let bookmarksDict = bookmarks.mapValues { $0.base64EncodedString() }
 
         let encoder = JSONEncoder()
         let configData = try encoder.encode(config)
 
         let payload: [String: Any] = [
             "containerId": containerId,
-            "config": try JSONSerialization.jsonObject(with: configData)
+            "config": try JSONSerialization.jsonObject(with: configData),
+            "bookmarks": bookmarksDict
         ]
         _ = try await sendCommandRaw(command: "startFull", payload: payload)
     }
 
     public func start(containerId: String) async throws {
-        _ = try await sendCommandRaw(command: "start", payload: ["id": containerId])
+        var bookmarks: [String: Data] = [:]
+        if let workloads = try? await fetchActiveWorkloads() {
+            for workload in workloads {
+                if case .container(let vesselContainer) = workload, vesselContainer.id == containerId {
+                    for volume in vesselContainer.volumes {
+                        try await BookmarkManager.shared.resolveAndAccess(path: volume.host)
+                        if let data = BookmarkManager.shared.getBookmarkData(for: volume.host) {
+                            bookmarks[volume.host] = data
+                        }
+                    }
+                    break
+                }
+            }
+        }
+        let bookmarksDict = bookmarks.mapValues { $0.base64EncodedString() }
+
+        _ = try await sendCommandRaw(command: "start", payload: ["id": containerId, "bookmarks": bookmarksDict])
     }
 
     public func listFiles(in path: String, containerId: String) async throws -> String {
