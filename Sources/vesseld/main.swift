@@ -278,7 +278,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                     try await daemon.start(containerId: id, config: config)
                     replyWrapper.reply(Data(), nil)
                 case "start":
-                    self.resolveBookmarks(from: dict)
+                    self?.resolveBookmarks(from: dict)
                     guard let id = dict?["id"] as? String else {
                         replyWrapper.reply(nil, NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id"]))
                         return
