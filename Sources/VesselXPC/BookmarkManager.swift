@@ -167,4 +167,10 @@ public class BookmarkManager: @unchecked Sendable {
         }
         activeUrlsLock.unlock()
     }
+    public func getBookmarkData(for path: String) -> Data? {
+        bookmarksLock.lock()
+        let data = cachedBookmarks[path]
+        bookmarksLock.unlock()
+        return data
+    }
 }

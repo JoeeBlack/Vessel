@@ -17,6 +17,9 @@ let package = Package(
     targets: [
         .target(
             name: "VesselXPC",
+            dependencies: [
+                .product(name: "Yams", package: "Yams")
+            ],
             path: "Sources/VesselXPC",
             swiftSettings: [
                 .unsafeFlags(["-whole-module-optimization"], .when(configuration: .release))
