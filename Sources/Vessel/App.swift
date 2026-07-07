@@ -9,6 +9,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var pausedForSleep = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        BookmarkManager.shared.restoreAccess()
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(sleepListener(_:)), name: NSWorkspace.screensDidSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(wakeListener(_:)), name: NSWorkspace.screensDidWakeNotification, object: nil)
 
