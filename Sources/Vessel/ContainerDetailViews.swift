@@ -82,12 +82,23 @@ struct ContainerConsoleView: View {
                     .cornerRadius(8)
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.cardBorder, lineWidth: 1))
 
-                    Image(systemName: "line.3.horizontal.decrease")
-                        .foregroundColor(AppTheme.textSecondary)
-                        .padding(.leading, 8)
-                    Image(systemName: "arrow.down.to.line")
-                        .foregroundColor(AppTheme.textSecondary)
-                        .padding(.leading, 12)
+                    Button(action: {}) {
+                        Image(systemName: "line.3.horizontal.decrease")
+                            .foregroundColor(AppTheme.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Filter options")
+                    .accessibilityLabel("Filter options")
+                    .padding(.leading, 8)
+
+                    Button(action: {}) {
+                        Image(systemName: "arrow.down.to.line")
+                            .foregroundColor(AppTheme.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Scroll to bottom")
+                    .accessibilityLabel("Scroll to bottom")
+                    .padding(.leading, 12)
                 }
 
                 // Console View
