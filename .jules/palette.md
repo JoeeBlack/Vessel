@@ -16,7 +16,7 @@
 ## 2026-06-17 - Custom SwiftUI Views in Menu Bar
 **Learning:** By default, `MenuBarExtra` renders its content as a standard macOS menu. To render complex custom SwiftUI layouts (like lists with buttons, graphs, and stats) from the menu bar icon, you must change the style.
 **Action:** Use the `.menuBarExtraStyle(.window)` modifier on the `MenuBarExtra` to present it as a popover window instead of a standard list menu.
-## $(date +%Y-%m-%d) - Add Sensory Feedback (Haptics)
+## 2026-07-06 - Add Sensory Feedback (Haptics)
 **Learning:** For a faster perceived app response time on macOS trackpads without CPU overhead, use `.sensoryFeedback(trigger:)` from macOS 14+. It can be toggled by coupling the condition inside the modifier logic with an `@AppStorage` variable.
 **Action:** When adding micro-interactions to start/stop or errors in Apple platform apps, implement `.sensoryFeedback(.impact)` or `.sensoryFeedback(.error)` and ensure they are user-configurable.
 ## 2026-06-17 - Smart Sleep Eco Mode (Low Power Integration)
@@ -26,3 +26,6 @@
 ## 2026-06-18 - Missing Accessibility Labels on Navigation Icons
 **Learning:** Icon-only navigation buttons like `arrow.up` or `arrow.clockwise` in lists or explorer views (e.g., `VolumesManagerView.swift`) must have descriptive labels, otherwise their functionality is opaque to screen readers.
 **Action:** Always add `.help("description")` and `.accessibilityLabel("description")` to custom interaction buttons using SF Symbols inside views like file browsers or volume managers.
+## 2026-07-06 - Adding accessibility to decorative icons masquerading as buttons
+**Learning:** Found instances where icons (like `line.3.horizontal.decrease` or `arrow.down.to.line`) were visually placed to look like action buttons (filter, scroll to bottom) near search bars but were not actually wrapped in `Button` elements. This makes them entirely inaccessible to keyboard navigation and screen readers, and prevents them from functioning.
+**Action:** Always wrap interactive-looking icons in `Button(action: {})` with `.buttonStyle(.plain)` and ensure they have `.help()` and `.accessibilityLabel()` modifiers so they are announced correctly by VoiceOver and provide tooltips.
