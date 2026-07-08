@@ -171,26 +171,16 @@ struct SettingsView: View {
         Task.detached {
             let appleScript = """
             on run argv
-                if count of argv is 0 then return
-                set cmd to quoted form of item 1 of argv
-                repeat with i from 2 to count of argv
-                    set cmd to cmd & " " & quoted form of item i of argv
-                end repeat
+                set sourcePath to item 1 of argv
+                set targetPath to item 2 of argv
+                set cmd to "mkdir -p /usr/local/bin && cp " & quoted form of sourcePath & " " & quoted form of targetPath & " && chmod +x " & quoted form of targetPath
                 do shell script cmd with administrator privileges
             end run
             """
             
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            process.arguments = [
-                "-e", appleScript,
-                "--",
-                "/bin/sh", "-c",
-                "mkdir -p /usr/local/bin && cp \"$1\" \"$2\" && chmod +x \"$2\"",
-                "--",
-                cliUrl.path,
-                targetPath
-            ]
+            process.arguments = ["-e", appleScript, "--", cliUrl.path, targetPath]
             try? process.run()
             process.waitUntilExit()
         }
