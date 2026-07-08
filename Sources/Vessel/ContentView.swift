@@ -10,7 +10,6 @@ struct ContentView: View {
     enum SidebarItem: String, CaseIterable, Identifiable {
         case containers = "Containers"
         case images = "Images"
-        case marketplace = "Marketplace"
         case networks = "Networks"
         case networkMap = "Network Map"
         case settings = "Settings"
@@ -21,7 +20,6 @@ struct ContentView: View {
             switch self {
             case .containers: return "cube.box"
             case .images: return "square.stack.3d.up"
-            case .marketplace: return "storefront"
             case .networks: return "network"
             case .networkMap: return "map"
             case .volumes: return "externaldrive"
@@ -177,8 +175,6 @@ struct ContentView: View {
                         }
                     } else if selectedSidebarItem == .images {
                         ImagesListView()
-                    } else if selectedSidebarItem == .marketplace {
-                        MarketplaceView(viewModel: viewModel)
                     } else if selectedSidebarItem == .networks {
                         NetworksListView()
                     } else if selectedSidebarItem == .networkMap {
