@@ -130,20 +130,18 @@ struct SettingsView: View {
                 // Assuming we also try to call the original apple uninstaller if it exists
                 let scriptPath = "/usr/local/bin/uninstall-container.sh"
                 if FileManager.default.fileExists(atPath: scriptPath) {
-                    // 🛡️ Sentinel: Ensure arguments are escaped to prevent command injection
-                    let safeArgs = arguments.map { "'" + $0.replacingOccurrences(of: "'", with: "'\\''") + "'" }.joined(separator: " ")
-                    let safeScriptPath = "'" + scriptPath.replacingOccurrences(of: "'", with: "'\\''") + "'"
-                    let command = "\(safeScriptPath) \(safeArgs)"
-
-                    // 🛡️ Sentinel: Escape the entire command for AppleScript string literal
-                    let safeCommand = command
-                        .replacingOccurrences(of: "\\", with: "\\\\")
-                        .replacingOccurrences(of: "\"", with: "\\\"")
-
-                    let appleScript = "do shell script \"\(safeCommand)\" with administrator privileges"
+                    let appleScript = """
+                    on run argv
+                        set cmd to quoted form of item 1 of argv
+                        repeat with i from 2 to count of argv
+                            set cmd to cmd & " " & quoted form of item i of argv
+                        end repeat
+                        do shell script cmd with administrator privileges
+                    end run
+                    """
                     let process = Process()
                     process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-                    process.arguments = ["-e", appleScript]
+                    process.arguments = ["-e", appleScript, "--", scriptPath] + arguments
                     try process.run()
                     process.waitUntilExit()
                 }
@@ -169,20 +167,18 @@ struct SettingsView: View {
         let targetPath = "/usr/local/bin/container"
         
         Task.detached {
-            // 🛡️ Sentinel: Escape the path to prevent command injection via malicious bundle paths
-            let safeSourcePath = "'" + cliUrl.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
-            let command = "mkdir -p /usr/local/bin && cp \(safeSourcePath) \(targetPath) && chmod +x \(targetPath)"
-
-            // 🛡️ Sentinel: Escape the entire command for AppleScript string literal
-            let safeCommand = command
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "\"", with: "\\\"")
-
-            let appleScript = "do shell script \"\(safeCommand)\" with administrator privileges"
+            let appleScript = """
+            on run argv
+                set sourcePath to item 1 of argv
+                set targetPath to item 2 of argv
+                set cmd to "mkdir -p /usr/local/bin && cp " & quoted form of sourcePath & " " & quoted form of targetPath & " && chmod +x " & quoted form of targetPath
+                do shell script cmd with administrator privileges
+            end run
+            """
             
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            process.arguments = ["-e", appleScript]
+            process.arguments = ["-e", appleScript, "--", cliUrl.path, targetPath]
             try? process.run()
             process.waitUntilExit()
         }
