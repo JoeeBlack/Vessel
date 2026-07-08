@@ -46,23 +46,6 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
         reply("vesseld cannot wake container: not implemented", nil)
     }
 
-    func scanImage(reference: String, reply: @escaping (Data?, Error?) -> Void) {
-        struct ReplyWrapper: @unchecked Sendable {
-            let reply: (Data?, Error?) -> Void
-        }
-        let replyWrapper = ReplyWrapper(reply: reply)
-        let scanner = ScannerService()
-        Task {
-            do {
-                let vulns = try await scanner.scanImage(reference: reference)
-                let data = try JSONEncoder().encode(vulns)
-                replyWrapper.reply(data, nil)
-            } catch {
-                replyWrapper.reply(nil, error)
-            }
-        }
-    }
-
     private static func isPathSafe(_ path: String, userIdentifier: uid_t?) -> Bool {
         // Prevent arbitrary directory mount bypasses and enforce explicit user consent
         // Reject paths targeting root (/), /Users, or outside the current user's home directory.
