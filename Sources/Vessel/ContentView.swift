@@ -4,6 +4,7 @@ import Containerization
 import ContainerizationOCI
 import UniformTypeIdentifiers
 import ServiceManagement
+import CryptoKit
 
 struct ContentView: View {
     enum SidebarItem: String, CaseIterable, Identifiable {
@@ -268,6 +269,7 @@ struct ContentView: View {
                         installStatusMessage = "Starting download..."
                     }
                     let urlStr = "https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-arm64.tar.xz"
+                    let expectedChecksum = "647c7612e6edf789d5e14698c48c99d8bac15ad139ffaa1c8bb7d229f748d181"
                     let tarPath = dir.appendingPathComponent("kata.tar.xz")
                     
                     let downloader = KernelDownloader()
@@ -279,6 +281,26 @@ struct ContentView: View {
                     }
                     
                     let downloadedURL = try await downloader.download(url: URL(string: urlStr)!)
+
+                    await MainActor.run {
+                        installProgress = 0.45
+                        installStatusMessage = "Verifying download..."
+                    }
+
+                    var hasher = SHA256()
+                    let fileHandle = try FileHandle(forReadingFrom: downloadedURL)
+                    defer { try? fileHandle.close() }
+
+                    while let data = try fileHandle.read(upToCount: 8192) {
+                        hasher.update(data: data)
+                    }
+
+                    let checksum = hasher.finalize().compactMap { String(format: "%02x", $0) }.joined()
+                    guard checksum == expectedChecksum else {
+                        try? FileManager.default.removeItem(at: downloadedURL)
+                        throw NSError(domain: "VesselErrorDomain", code: 1, userInfo: [NSLocalizedDescriptionKey: "Security Error: Kernel checksum mismatch. Download may be compromised."])
+                    }
+
                     if FileManager.default.fileExists(atPath: tarPath.path) {
                         try FileManager.default.removeItem(at: tarPath)
                     }
