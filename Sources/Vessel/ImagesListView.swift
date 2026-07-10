@@ -1,16 +1,6 @@
 import SwiftUI
 import VesselXPC
 
-enum ScanStatus: Equatable {
-    case unscanned
-    case scanning
-    case safe
-    case vulnerable(critical: Int, high: Int, other: Int)
-    case error(String)
-}
-
-
-
 @Observable
 class ImagesViewModel: @unchecked Sendable {
     var images: [VesselImage] = []
@@ -18,9 +8,6 @@ class ImagesViewModel: @unchecked Sendable {
     var isPulling: Bool = false
     var pullProgress: Double = 0.0
     var pullTask: Task<Void, Never>? = nil
-
-    var scanStatuses: [String: ScanStatus] = [:]
-    var scanResults: [String: [TrivyVulnerability]] = [:]
 
     private let daemon = ContainerDaemon()
     
@@ -96,65 +83,6 @@ class ImagesViewModel: @unchecked Sendable {
                 await self.fetchImages()
             } catch {
                 print("Failed to delete image: \(error)")
-            }
-        }
-    }
-
-    func scanImage(_ image: VesselImage) {
-        let id = image.id
-        self.scanStatuses[id] = .scanning
-        Task.detached {
-            do {
-                let rawRef = "\(image.repository):\(image.tag)"
-                let ref = await MainActor.run { self.normalize(reference: rawRef) }
-
-                let connection = NSXPCConnection(serviceName: "com.vessel.daemon")
-                connection.remoteObjectInterface = NSXPCInterface(with: VesselXPCProtocol.self)
-                connection.resume()
-
-                guard let proxy = connection.remoteObjectProxy as? VesselXPCProtocol else {
-                    throw NSError(domain: "ImagesListView", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to get XPC proxy"])
-                }
-
-                let vulns: [TrivyVulnerability] = try await withCheckedThrowingContinuation { continuation in
-                    proxy.scanImage(reference: ref) { data, error in
-                        if let error = error {
-                            continuation.resume(throwing: error)
-                        } else if let data = data {
-                            do {
-                                let decoded = try JSONDecoder().decode([TrivyVulnerability].self, from: data)
-                                continuation.resume(returning: decoded)
-                            } catch {
-                                continuation.resume(throwing: error)
-                            }
-                        } else {
-                            continuation.resume(throwing: NSError(domain: "ImagesListView", code: 2, userInfo: [NSLocalizedDescriptionKey: "No data from XPC"]))
-                        }
-                    }
-                }
-
-                connection.invalidate()
-
-                await MainActor.run {
-                    self.scanResults[id] = vulns
-                    if vulns.isEmpty {
-                        self.scanStatuses[id] = .safe
-                    } else {
-                        let (critical, high) = vulns.reduce(into: (0, 0)) { counts, vuln in
-                            if vuln.severity.localizedCaseInsensitiveCompare("CRITICAL") == .orderedSame {
-                                counts.0 += 1
-                            } else if vuln.severity.localizedCaseInsensitiveCompare("HIGH") == .orderedSame {
-                                counts.1 += 1
-                            }
-                        }
-                        let other = vulns.count - critical - high
-                        self.scanStatuses[id] = .vulnerable(critical: critical, high: high, other: other)
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    self.scanStatuses[id] = .error(error.localizedDescription)
-                }
             }
         }
     }
@@ -273,16 +201,8 @@ struct ImagesListView: View {
                         ForEach(viewModel.images) { img in
                             ImageCardView(
                                 image: img,
-                                scanStatus: viewModel.scanStatuses[img.id] ?? .unscanned,
-                                vulnerabilities: viewModel.scanResults[img.id] ?? [],
-                                onDelete: { viewModel.deleteImage(img) },
-                                onScan: { viewModel.scanImage(img) }
+                                onDelete: { viewModel.deleteImage(img) }
                             )
-                            .task {
-                                if viewModel.scanStatuses[img.id] == nil {
-                                    viewModel.scanImage(img)
-                                }
-                            }
                         }
                     }
                 }
@@ -298,13 +218,8 @@ struct ImagesListView: View {
 
 struct ImageCardView: View {
     let image: VesselImage
-    let scanStatus: ScanStatus
-    let vulnerabilities: [TrivyVulnerability]
     let onDelete: () -> Void
-    let onScan: () -> Void
 
-    @State private var isShowingReport = false
-    
     var body: some View {
         HStack {
             ZStack {
@@ -342,23 +257,6 @@ struct ImageCardView: View {
                     .font(.system(size: 12))
                     .foregroundColor(AppTheme.textSecondary)
             }
-            
-
-            // Scan Status Badge
-            Button {
-                if case .vulnerable = scanStatus {
-                    isShowingReport = true
-                } else if case .safe = scanStatus {
-                    isShowingReport = true
-                } else if case .error = scanStatus {
-                    onScan() // retry scan
-                }
-            } label: {
-                scanBadgeView
-            }
-            .buttonStyle(.plain)
-            .help(scanBadgeTooltip)
-            .accessibilityLabel(scanBadgeTooltip)
 
             Button(action: onDelete) {
                 Image(systemName: "trash")
@@ -381,81 +279,6 @@ struct ImageCardView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(AppTheme.cardBorder, lineWidth: 1)
         )
-        .sheet(isPresented: $isShowingReport) {
-            VulnerabilityReportView(vulnerabilities: vulnerabilities)
-        }
-    }
-
-    @ViewBuilder
-    private var scanBadgeView: some View {
-        HStack(spacing: 4) {
-            switch scanStatus {
-            case .unscanned:
-                Image(systemName: "questionmark.circle")
-                    .foregroundColor(AppTheme.textSecondary)
-                Text("Unscanned")
-                    .font(.system(size: 10))
-                    .foregroundColor(AppTheme.textSecondary)
-            case .scanning:
-                ProgressView()
-                    .controlSize(.mini)
-                Text("Scanning")
-                    .font(.system(size: 10))
-                    .foregroundColor(AppTheme.textSecondary)
-            case .safe:
-                Image(systemName: "checkmark.shield.fill")
-                    .foregroundColor(.green)
-                Text("Safe")
-                    .font(.system(size: 10))
-                    .foregroundColor(.green)
-            case .vulnerable(let critical, let high, let other):
-                if critical > 0 {
-                    Image(systemName: "exclamationmark.shield.fill")
-                        .foregroundColor(.red)
-                    Text("\(critical) CRIT")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.red)
-                } else if high > 0 {
-                    Image(systemName: "exclamationmark.shield.fill")
-                        .foregroundColor(.orange)
-                    Text("\(high) HIGH")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.orange)
-                } else {
-                    Image(systemName: "exclamationmark.shield.fill")
-                        .foregroundColor(.yellow)
-                    Text("\(other) VULN")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.yellow)
-                }
-            case .error:
-                Image(systemName: "xmark.shield.fill")
-                    .foregroundColor(.red)
-                Text("Scan Error")
-                    .font(.system(size: 10))
-                    .foregroundColor(.red)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Material.ultraThin)
-        .background(AppTheme.cardBackground)
-        .cornerRadius(6)
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(AppTheme.cardBorder, lineWidth: 1)
-        )
-    }
-
-    private var scanBadgeTooltip: String {
-        switch scanStatus {
-        case .unscanned: return "Not scanned"
-        case .scanning: return "Scanning for vulnerabilities..."
-        case .safe: return "No vulnerabilities found. Click to view report."
-        case .vulnerable(let crit, let high, let other):
-            return "Vulnerabilities found: \(crit) Critical, \(high) High, \(other) Other. Click to view report."
-        case .error(let msg): return "Scan failed: \(msg). Click to retry."
-        }
     }
 }
 
