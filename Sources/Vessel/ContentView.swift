@@ -384,6 +384,34 @@ struct SidebarView: View {
     @Binding var selectedSidebarItem: ContentView.SidebarItem?
     @Binding var selectedContainerId: String?
     
+    @ViewBuilder private func sidebarButton(for item: ContentView.SidebarItem) -> some View {
+        Button(action: {
+            selectedSidebarItem = item
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedContainerId = nil } // reset selection
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: item.icon)
+                    .font(.system(size: 16))
+                    .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
+                    .frame(width: 24)
+
+                Text(item.rawValue)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
+
+                Spacer()
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(selectedSidebarItem == item ? AppTheme.accentBlue.opacity(0.05) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header (Vessel Logo)
@@ -413,37 +441,18 @@ struct SidebarView: View {
             // Menu Items
             ScrollView {
                 VStack(spacing: 8) {
-                    ForEach(ContentView.SidebarItem.allCases) { item in
-                        Button(action: {
-                            selectedSidebarItem = item
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedContainerId = nil } // reset selection
-                        }) {
-                            HStack(spacing: 12) {
-                                Image(systemName: item.icon)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
-                                    .frame(width: 24)
-                                
-                                Text(item.rawValue)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(selectedSidebarItem == item ? AppTheme.accentBlue : AppTheme.textPrimary)
-                                
-                                Spacer()
-                            }
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(selectedSidebarItem == item ? AppTheme.accentBlue.opacity(0.05) : Color.clear)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 12)
+                    ForEach(ContentView.SidebarItem.allCases.filter { $0 != .settings }) { item in
+                        sidebarButton(for: item)
                     }
                 }
                 .padding(.top, 24)
             }
-            Spacer()
+            Spacer(minLength: 0)
+
+            VStack(spacing: 8) {
+                sidebarButton(for: .settings)
+            }
+            .padding(.bottom, 24)
         }
         .background(Material.thin)
         .background(AppTheme.sidebarBackground)
