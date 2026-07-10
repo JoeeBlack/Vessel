@@ -150,7 +150,7 @@ public class ContainerViewModel: @unchecked Sendable {
         }
     }
     @MainActor
-    public func createContainer(name: String, image: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, isBackground: Bool, cpus: Int, memoryGB: Double, envVars: [String: String], volumes: [VesselVolume], portForwards: [VesselPortForward], domain: VesselDomain = .generic) async {
+    public func createContainer(name: String, image: String, rootfsSizeGB: Double, rosetta: Bool, networking: Bool, cpus: Int, memoryGB: Double, envVars: [String: String], volumes: [VesselVolume], portForwards: [VesselPortForward], domain: VesselDomain = .generic) async {
         await checkAndRequestNotificationAuthorization()
 
 
@@ -158,7 +158,7 @@ public class ContainerViewModel: @unchecked Sendable {
         loadingContainers.insert(newId)
         
         // Add a temporary container to the UI
-        let placeholder = VesselContainer(id: newId, name: name, subtitle: "WORKLOAD", image: image, status: .creating, networkingEnabled: networking, isBackground: isBackground, portForwards: portForwards, domain: domain)
+        let placeholder = VesselContainer(id: newId, name: name, subtitle: "WORKLOAD", image: image, status: .creating, networkingEnabled: networking, portForwards: portForwards, domain: domain)
         self.workloads.insert(.container(placeholder), at: 0)
         
         defer { loadingContainers.remove(newId) }
@@ -170,7 +170,6 @@ public class ContainerViewModel: @unchecked Sendable {
                 rootfsSizeGB: rootfsSizeGB,
                 rosetta: rosetta,
                 networking: networking,
-                isBackground: isBackground,
                 cpus: cpus,
                 memoryGB: memoryGB,
                 envVars: envVars,
@@ -300,15 +299,7 @@ public class ContainerViewModel: @unchecked Sendable {
     public func streamLogs(for id: String) async {
         // Czyścimy poprzednie logi za każdym razem, gdy wywołujemy metodę dla nowego kontenera
         currentLogs.removeAll()
-        
-        let isBg: Bool = {
-            if let w = workload(for: id), case .container(let c) = w {
-                return c.isBackground
-            }
-            return false
-        }()
-        
-        let qos: DispatchQoS = isBg ? .background : .utility
+        let qos: DispatchQoS = .utility
 
         let taskWrapper = TaskWrapper()
 
@@ -391,13 +382,7 @@ public class ContainerViewModel: @unchecked Sendable {
         }
 
         if activeStatsTasks[id] == nil {
-            let isBg: Bool = {
-                if let w = workload(for: id), case .container(let c) = w {
-                    return c.isBackground
-                }
-                return false
-            }()
-            let qos: DispatchQoS = isBg ? .background : .utility
+            let qos: DispatchQoS = .utility
 
             activeStatsTasks[id] = Task { [weak self] in
                 guard let self = self else { return }
