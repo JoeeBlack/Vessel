@@ -134,8 +134,6 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
     <true/>
     <key>CFBundleIconFile</key>
     <string>$ICON_ICNS</string>
-    <key>NSSiriUsageDescription</key>
-    <string>Vessel uses Siri to start and stop containers.</string>
 </dict>
 </plist>
 EOF
