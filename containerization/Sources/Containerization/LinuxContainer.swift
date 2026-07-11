@@ -637,7 +637,7 @@ extension LinuxContainer {
             }
 
             // Now lets ensure every process is donezo.
-            try await agent.kill(pid: -1, signal: SIGKILL)
+            try await startedState.process.kill(SIGKILL)
 
             // Wait on init proc exit. Give it 5 seconds of leeway.
             _ = try await agent.waitProcess(
