@@ -20,13 +20,8 @@ public class BookmarkManager: @unchecked Sendable {
         let resolvedPath = URL(fileURLWithPath: expandedPath).resolvingSymlinksInPath().path
         let url = URL(fileURLWithPath: resolvedPath)
 
-        // If we already have a valid bookmark that gives access, return
-        if hasAccess(to: url) {
-            return
-        }
-
-        // Prompt the user for access
-        try await requestAccessOnMainThread(for: url)
+        // Sandbox is disabled, we don't need bookmarks.
+        return
     }
 
     private func hasAccess(to url: URL) -> Bool {

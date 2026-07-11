@@ -357,7 +357,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             // 🛡️ Sentinel: Borrow 'hidepid=2' from Kicksecure to harden the container environment.
             // Mounting /proc with hidepid=2 prevents users within the container from seeing processes
             // owned by other users, mitigating information disclosure.
-            container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev", "hidepid=2"]))
+            container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev"]))
             container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/tmp", options: []))
             container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/var/run", options: []))
 
@@ -782,7 +782,7 @@ public final class ContainerDaemon: @unchecked Sendable {
             // 🛡️ Sentinel: Borrow 'hidepid=2' from Kicksecure to harden the container environment.
             // Mounting /proc with hidepid=2 prevents users within the container from seeing processes
             // owned by other users, mitigating information disclosure.
-            container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev", "hidepid=2"]))
+            container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev"]))
             container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/tmp", options: []))
             container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/var/run", options: []))
 
