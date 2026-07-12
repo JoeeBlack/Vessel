@@ -2,14 +2,47 @@ import Foundation
 import Security
 import os
 import VesselXPC
+import Containerization
+
+final class XPCShellReader: ReaderStream, @unchecked Sendable {
+    private let internalStream: AsyncStream<Data>
+    
+    init(stream: AsyncStream<Data>) {
+        self.internalStream = stream
+    }
+    
+    func stream() -> AsyncStream<Data> {
+        return internalStream
+    }
+}
+
+final class XPCShellWriter: Writer, @unchecked Sendable {
+    private let delegate: VesselXPCStreamDelegate
+    
+    init(delegate: VesselXPCStreamDelegate) {
+        self.delegate = delegate
+    }
+    
+    func write(_ data: Data) throws {
+        delegate.onEvent(payload: data)
+    }
+}
 
 class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
     private let daemon: ContainerDaemon
     private var connectionTasks: [ObjectIdentifier: [UUID: Task<Void, Never>]] = [:]
+    private var activeShellStreams: [String: AsyncStream<Data>.Continuation] = [:]
     private let lock = NSLock()
 
     init(daemon: ContainerDaemon) {
         self.daemon = daemon
+    }
+
+    func writeToStream(streamId: String, payload: Data) {
+        lock.lock()
+        let continuation = activeShellStreams[streamId]
+        lock.unlock()
+        continuation?.yield(payload)
     }
 
     func cancelTasks(for connectionId: ObjectIdentifier) {
@@ -36,6 +69,18 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
             connectionTasks.removeValue(forKey: connectionId)
         }
         lock.unlock()
+    }
+
+    func addShellStream(_ continuation: AsyncStream<Data>.Continuation, for id: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        activeShellStreams[id] = continuation
+    }
+
+    func removeShellStream(for id: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        activeShellStreams.removeValue(forKey: id)
     }
 
     func ps(reply: @escaping (String) -> Void) {
@@ -373,6 +418,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                     }
                     let stream = try await daemon.startStatsStream(containerId: id)
                     for await stat in stream {
+                        if Task.isCancelled { break }
                         if let data = try? JSONEncoder().encode(stat) {
                             wrapper.delegate.onEvent(payload: data)
                         }
@@ -385,6 +431,7 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                     }
                     let stream = daemon.streamLogs(for: id)
                     for await log in stream {
+                        if Task.isCancelled { break }
                         if let data = log.data(using: .utf8) {
                             wrapper.delegate.onEvent(payload: data)
                         }
@@ -402,6 +449,30 @@ class VesselDaemonXPC: NSObject, VesselXPCProtocol, @unchecked Sendable {
                     }
                     if let data = try? JSONSerialization.data(withJSONObject: ["progress": 1.0, "finished": true]) {
                         wrapper.delegate.onEvent(payload: data)
+                        wrapper.delegate.onComplete(error: nil)
+                    }
+                case "execShell":
+                    guard let id = dict?["id"] as? String, let streamId = dict?["streamId"] as? String else {
+                        wrapper.delegate.onComplete(error: NSError(domain: "VesselDaemonXPC", code: 400, userInfo: [NSLocalizedDescriptionKey: "Missing id or streamId"]))
+                        return
+                    }
+                    
+                    let (stream, continuation) = AsyncStream<Data>.makeStream()
+                    self?.addShellStream(continuation, for: streamId)
+                    
+                    defer {
+                        self?.removeShellStream(for: streamId)
+                        continuation.finish()
+                    }
+                    
+                    let reader = XPCShellReader(stream: stream)
+                    let writer = XPCShellWriter(delegate: wrapper.delegate)
+                    
+                    let process = try await daemon.execShell(containerId: id, stdin: reader, stdout: writer)
+                    let exitCode = try await process.wait(timeoutInSeconds: nil)
+                    if exitCode != 0 {
+                        wrapper.delegate.onComplete(error: NSError(domain: "VesselDaemonXPC", code: Int(exitCode), userInfo: [NSLocalizedDescriptionKey: "Process exited with code \(exitCode)"]))
+                    } else {
                         wrapper.delegate.onComplete(error: nil)
                     }
                 default:

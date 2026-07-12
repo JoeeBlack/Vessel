@@ -14,4 +14,7 @@ import Foundation
 
     // Stream method using a delegate object
     func openStream(command: String, payload: Data, delegate: VesselXPCStreamDelegate)
+
+    // Write data to an active stream
+    func writeToStream(streamId: String, payload: Data)
 }

@@ -91,7 +91,7 @@ public class ContainerViewModel: @unchecked Sendable {
     public var shellOutputPipes: [String: Pipe] = [:]
     public var publishedStats: [String: StatsModel] = [:]
     public var statsHistory: [String: [StatsModel]] = [:]
-    private var shellProcesses: [String: LinuxProcess] = [:]
+    private var shellProcesses: [String: String] = [:]
 
     // ⚡ Bolt Optimization: Use reference counting to share a single background stats stream
     // across multiple views without dropping updates when one view disappears.

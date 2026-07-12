@@ -217,13 +217,9 @@ struct FileRowView: View {
                 let fi = item
                 
                 Task {
-                    do {
-                        try? FileManager.default.removeItem(at: url)
-                        await vm.download(file: fi, to: url)
-                        wrapper.handler(url, true, nil)
-                    } catch {
-                        wrapper.handler(nil, false, error)
-                    }
+                    try? FileManager.default.removeItem(at: url)
+                    await vm.download(file: fi, to: url)
+                    wrapper.handler(url, true, nil)
                 }
                 return nil
             }

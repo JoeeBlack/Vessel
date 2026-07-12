@@ -1,5 +1,7 @@
 # Vessel 🚢
 
+> ⚠️ **Work in Progress:** Ten projekt jest aktywnie rozwijany i ulepszany (WIP).
+
 Vessel to lekki, natywny interfejs graficzny do zarządzania kontenerami na systemie macOS. Projekt stawia na wysoką wydajność, prostotę użytkowania oraz doskonałą integrację ze środowiskiem Apple.
 
 ## O projekcie

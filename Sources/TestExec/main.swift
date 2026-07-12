@@ -23,7 +23,7 @@ actor TestApp {
             print("STDOUT: \(str)")
         }
         
-        let process = try await daemon.execShell(containerId: first.id, stdin: ShellReader(stream: stream), stdout: writer)
+        let streamId = try await daemon.execShell(containerId: first.id, stdin: ShellReader(stream: stream), stdout: writer)
         print("Shell started")
         
         try await Task.sleep(nanoseconds: 1_000_000_000)

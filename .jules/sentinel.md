@@ -1,4 +1,0 @@
-## 2025-02-13 - [App Sandbox Entitlements & Security-Scoped Bookmarks]
-**Vulnerability:** [Container Path Traversal & Unrestricted File System Access]
-**Learning:** [To prevent a container from maliciously accessing the host file system in an App Sandboxed environment, macOS requires the app to explicitly request read-write access to user-selected directories via `NSOpenPanel`. The access must be cryptographically encoded into a Security-Scoped Bookmark and stored for future use.]
-**Prevention:** [Enabled `com.apple.security.app-sandbox`, `com.apple.security.files.user-selected.read-write`, and `com.apple.security.files.bookmarks.app-scope` in `.entitlements`. Created a `BookmarkManager` to handle `NSOpenPanel` prompting, storing bookmarks in `UserDefaults`, and safely resolving/restoring them on reboot while correctly expanding `~` paths to prevent bugs and deadlock conditions during concurrent access.]

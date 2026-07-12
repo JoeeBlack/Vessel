@@ -7,6 +7,18 @@ final class StreamDelegateProxy: NSObject, VesselXPCStreamDelegate, @unchecked S
     private let onEventBlock: @Sendable (Data) -> Void
     private let onCompleteBlock: @Sendable (Error?) -> Void
 
+    private func writeLog(_ msg: String) {
+        let url = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/ui.log")
+        let data = "[\(Date())] \(msg)\n".data(using: .utf8)!
+        if let handle = try? FileHandle(forWritingTo: url) {
+            handle.seekToEndOfFile()
+            handle.write(data)
+            handle.closeFile()
+        } else {
+            try? data.write(to: url)
+        }
+    }
+
     init(onEvent: @escaping @Sendable (Data) -> Void, onComplete: @escaping @Sendable (Error?) -> Void) {
         self.onEventBlock = onEvent
         self.onCompleteBlock = onComplete
@@ -14,10 +26,12 @@ final class StreamDelegateProxy: NSObject, VesselXPCStreamDelegate, @unchecked S
     }
 
     func onEvent(payload: Data) {
+        writeLog("StreamDelegateProxy received onEvent: \(payload.count) bytes")
         onEventBlock(payload)
     }
 
     func onComplete(error: Error?) {
+        writeLog("StreamDelegateProxy received onComplete: \(String(describing: error))")
         onCompleteBlock(error)
     }
 }
@@ -336,14 +350,18 @@ public final class ContainerDaemon: @unchecked Sendable {
             continuation.finish()
         })
 
-        continuation.onTermination = { [weak self, delegate] _ in
-            self?.untrackDelegate(delegate)
+        continuation.onTermination = { [weak self, weak delegate] _ in
+            if let delegate = delegate {
+                self?.untrackDelegate(delegate)
+            }
         }
 
         self.trackDelegate(delegate)
 
-        let localProxy = connection.remoteObjectProxyWithErrorHandler { [weak self] _ in
-            self?.untrackDelegate(delegate)
+        let localProxy = connection.remoteObjectProxyWithErrorHandler { [weak self, weak delegate] _ in
+            if let delegate = delegate {
+                self?.untrackDelegate(delegate)
+            }
             continuation.finish()
         } as! VesselXPCProtocol
 
@@ -367,14 +385,18 @@ public final class ContainerDaemon: @unchecked Sendable {
             continuation.finish()
         })
 
-        continuation.onTermination = { [weak self, delegate] _ in
-            self?.untrackDelegate(delegate)
+        continuation.onTermination = { [weak self, weak delegate] _ in
+            if let delegate = delegate {
+                self?.untrackDelegate(delegate)
+            }
         }
 
         self.trackDelegate(delegate)
 
-        let localProxy = connection.remoteObjectProxyWithErrorHandler { [weak self] _ in
-            self?.untrackDelegate(delegate)
+        let localProxy = connection.remoteObjectProxyWithErrorHandler { [weak self, weak delegate] _ in
+            if let delegate = delegate {
+                self?.untrackDelegate(delegate)
+            }
             continuation.finish()
         } as! VesselXPCProtocol
 
@@ -404,6 +426,14 @@ public final class ContainerDaemon: @unchecked Sendable {
 
     public func pullImage(reference: String, progress: @escaping @Sendable (Double) -> Void) async throws {
         let data = try JSONSerialization.data(withJSONObject: ["ref": reference])
+        var trackedDelegate: StreamDelegateProxy? = nil
+        
+        defer {
+            if let delegate = trackedDelegate {
+                self.untrackDelegate(delegate)
+            }
+        }
+        
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let wrapper = ContinuationWrapper(continuation)
 
@@ -411,9 +441,6 @@ public final class ContainerDaemon: @unchecked Sendable {
                 if let dict = try? JSONSerialization.jsonObject(with: eventData) as? [String: Any] {
                     if let pct = dict["progress"] as? Double {
                         progress(pct)
-                    }
-                    if let finished = dict["finished"] as? Bool, finished {
-                        wrapper.resume(returning: ())
                     }
                 }
             }, onComplete: { error in
@@ -423,12 +450,12 @@ public final class ContainerDaemon: @unchecked Sendable {
                     wrapper.resume(returning: ())
                 }
             })
-
+            
+            trackedDelegate = delegate
             wrapper.retain(delegate)
             self.trackDelegate(delegate)
 
-            let localProxy = connection.remoteObjectProxyWithErrorHandler { [weak self] error in
-                self?.untrackDelegate(delegate)
+            let localProxy = connection.remoteObjectProxyWithErrorHandler { error in
                 wrapper.resume(throwing: error)
             } as! VesselXPCProtocol
 
@@ -440,7 +467,52 @@ public final class ContainerDaemon: @unchecked Sendable {
         _ = try await sendCommandRaw(command: "deleteImage", payload: ["ref": reference])
     }
 
-    public func execShell(containerId: String, stdin: Containerization.ReaderStream, stdout: Containerization.Writer) async throws -> LinuxProcess {
-        throw NSError(domain: "Vessel", code: 501, userInfo: [NSLocalizedDescriptionKey: "execShell not supported over XPC directly yet"])
+    public func execShell(containerId: String, stdin: Containerization.ReaderStream, stdout: Containerization.Writer) async throws -> String {
+        let streamId = UUID().uuidString
+        let data = try JSONSerialization.data(withJSONObject: ["id": containerId, "streamId": streamId])
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+            let wrapper = ContinuationWrapper(continuation)
+
+            final class DelegateHolder: @unchecked Sendable {
+                weak var delegate: StreamDelegateProxy?
+            }
+            let holder = DelegateHolder()
+
+            let delegate = StreamDelegateProxy(onEvent: { eventData in
+                try? stdout.write(eventData)
+            }, onComplete: { [weak self] error in
+                if let error = error {
+                    // Try to resume if it hasn't started yet
+                    wrapper.resume(throwing: error)
+                }
+                if let d = holder.delegate {
+                    self?.untrackDelegate(d)
+                }
+            })
+            holder.delegate = delegate
+
+            wrapper.retain(delegate)
+            self.trackDelegate(delegate)
+
+            let localProxy = connection.remoteObjectProxyWithErrorHandler { [weak self] error in
+                self?.untrackDelegate(delegate)
+                wrapper.resume(throwing: error)
+            } as! VesselXPCProtocol
+            
+            // Start the reading task to consume stdin and send to XPC
+            let conn = connection
+            Task {
+                let streamProxy = conn.remoteObjectProxyWithErrorHandler { _ in } as! VesselXPCProtocol
+                for await chunk in stdin.stream() {
+                    streamProxy.writeToStream(streamId: streamId, payload: chunk)
+                }
+            }
+
+            localProxy.openStream(command: "execShell", payload: data, delegate: delegate)
+            
+            // Return streamId immediately so UI considers shell started
+            wrapper.resume(returning: streamId)
+        }
     }
 }

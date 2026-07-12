@@ -42,7 +42,7 @@ final class SafeNetServiceBox: @unchecked Sendable {
 
 public final class ContainerDaemon: @unchecked Sendable {
     private struct ActiveContainer {
-        let vessel: VesselContainer
+        var vessel: VesselContainer
         var linux: LinuxContainer?
         var logStream: AsyncStream<String>?
         var portForwarders: [PortForwarder] = []
@@ -258,6 +258,32 @@ public final class ContainerDaemon: @unchecked Sendable {
             print("No saved domain rules found or failed to load.")
             domainRules = []
         }
+    }
+
+    private func resolveLinuxContainer(id: String) -> LinuxContainer? {
+        if let active = activeContainers[id] {
+            return active.linux
+        }
+        for (_, activePod) in activePods {
+            for (serviceName, container) in activePod.linuxContainers {
+                if "\(activePod.pod.id)-\(serviceName)" == id {
+                    return container
+                }
+            }
+        }
+        return nil
+    }
+
+    private func resolveVesselContainer(id: String) -> VesselContainer? {
+        if let active = activeContainers[id] {
+            return active.vessel
+        }
+        for (_, activePod) in activePods {
+            if let vc = activePod.pod.containers.first(where: { $0.id == id }) {
+                return vc
+            }
+        }
+        return nil
     }
     
     public func startPod(yamlPath: URL, yamlString: String? = nil) async throws {
@@ -634,7 +660,7 @@ public final class ContainerDaemon: @unchecked Sendable {
                 box.svc.publish()
             }
         }
-
+        
         let vessel = VesselContainer(
             id: containerId,
             name: config.name,
@@ -642,6 +668,12 @@ public final class ContainerDaemon: @unchecked Sendable {
             image: config.imageReference,
             status: .running,
             ipAddress: config.networking ? "127.0.0.1" : nil,
+            dnsName: nil,
+            uptime: nil,
+            ports: "",
+            memoryUsage: nil,
+            volume: nil,
+            exitStatus: nil,
             rosettaEnabled: config.rosetta,
             networkingEnabled: config.networking,
             rootfsSize: "\(Int(config.rootfsSizeGB))GB",
@@ -650,13 +682,138 @@ public final class ContainerDaemon: @unchecked Sendable {
             envVars: config.envVars,
             volumes: config.volumes,
             portForwards: config.portForwards,
-            domain: config.domain
+            domain: config.domain,
+            networkName: nil
         )
         
         activeContainers[containerId] = ActiveContainer(vessel: vessel, linux: container, logStream: stream, portForwarders: activeForwarders, netService: netService)
         saveContainers()
         debugLog("Container added to activeContainers")
+        
+        Task { [weak self] in
+            guard let self = self else { return }
+            let exitCode = try? await container.wait()
+            try? await container.stop()
+            debugLog("Container \(containerId) exited with code \(exitCode ?? -1)")
+            if var active = self.activeContainers[containerId] {
+                let old = active.vessel
+                let statusStr = exitCode != nil ? String(exitCode!) : nil
+                let exited = VesselContainer(id: old.id, name: old.name, subtitle: old.subtitle, image: old.image, status: .stopped, ipAddress: old.ipAddress, dnsName: old.dnsName, uptime: old.uptime, ports: old.ports, memoryUsage: old.memoryUsage, volume: old.volume, exitStatus: statusStr, rosettaEnabled: old.rosettaEnabled, networkingEnabled: old.networkingEnabled, rootfsSize: old.rootfsSize, cpus: old.cpus, memoryGB: old.memoryGB, envVars: old.envVars, volumes: old.volumes, portForwards: old.portForwards, domain: old.domain, networkName: old.networkName)
+                active.vessel = exited
+                self.activeContainers[containerId] = active
+                self.saveContainers()
+            }
+        }
     }
+    
+    private func createLinuxContainer(for vessel: VesselContainer, containerId: String) async throws -> (LinuxContainer, AsyncStream<String>) {
+        let network: SimpleNATNetwork? = vessel.networkingEnabled ? SimpleNATNetwork() : nil
+        let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
+        var kernelCommandLine = Kernel.CommandLine()
+        kernelCommandLine.kernelArgs.append("ro")
+        let kernel = Kernel(path: kernelPath, platform: .linuxArm, commandline: kernelCommandLine)
+        let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
+        let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
+        let contentStore = try LocalContentStore(path: contentPath)
+        let store = try ImageStore(path: storePath, contentStore: contentStore)
+        let initPath = storePath.appendingPathComponent("initfs.ext4")
+        let initImage = try await store.getInitImage(reference: "ghcr.io/apple/containerization/vminit:0.33.4")
+        
+        let initfs = try await {
+            do {
+                return try await initImage.initBlock(at: initPath, for: .linuxArm)
+            } catch let err as ContainerizationError {
+                guard err.code == .exists else { throw err }
+                return Containerization.Mount.block(
+                    format: "ext4",
+                    source: initPath.absolutePath(),
+                    destination: "/",
+                    options: ["ro"]
+                )
+            }
+        }()
+        
+        let vmm = VZVirtualMachineManager(
+            kernel: kernel,
+            initialFilesystem: initfs,
+            bootlog: nil
+        )
+        
+        var logContinuation: AsyncStream<String>.Continuation!
+        let stream = AsyncStream<String> { cont in
+            logContinuation = cont
+        }
+        
+        let containerDir = storePath.appendingPathComponent("containers")
+        let fsPath = containerDir.appendingPathComponent("\(containerId)-rootfs.ext4")
+        let rootfs = Containerization.Mount.block(format: "ext4", source: fsPath.path, destination: "/", options: [])
+        
+        let container = LinuxContainer(containerId, rootfs: rootfs, vmm: vmm)
+        container.cpus = vessel.cpus
+        container.memoryInBytes = UInt64(vessel.memoryGB * 1024 * 1024 * 1024)
+        container.rosetta = vessel.rosettaEnabled
+        
+        if var network = network {
+            if let interface = try? network.createInterface(containerId) {
+                container.interfaces = [interface]
+                container.dns = Containerization.DNS(nameservers: ["192.168.64.1"])
+            }
+        }
+        
+        let normalizedRef = normalize(reference: vessel.image)
+        let platform = vessel.rosettaEnabled ? Platform(arch: "amd64", os: "linux") : Platform(arch: "arm64", os: "linux", variant: "v8")
+        
+        let image: Containerization.Image
+        do {
+            image = try await store.get(reference: normalizedRef)
+        } catch let err as ContainerizationError where err.code == .notFound {
+            // Re-pull image if missing during start
+            image = try await store.pull(reference: normalizedRef, platform: platform, auth: nil, progress: nil)
+            _ = try await image.unpack(for: platform, at: fsPath, blockSizeInBytes: 8 * 1024 * 1024 * 1024, progress: nil)
+        }
+        
+        let imageConfig = try await image.config(for: platform).config
+        
+        if let config = imageConfig {
+            let cwd = config.workingDir ?? "/"
+            let env = config.env ?? []
+            let args = (config.entrypoint ?? []) + (config.cmd ?? [])
+            
+            container.workingDirectory = cwd
+            var allEnvs = env
+            let resolvedServiceEnv = try resolveEnvironment(vessel.envVars)
+            allEnvs.append(contentsOf: resolvedServiceEnv)
+            container.environment = allEnvs
+            container.arguments = args
+            
+            if let rawString = config.user {
+                container.user = ContainerizationOCI.User(username: rawString)
+            }
+        } else {
+            let resolvedServiceEnv = try resolveEnvironment(vessel.envVars)
+            container.environment.append(contentsOf: resolvedServiceEnv)
+        }
+        
+        container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev"]))
+        container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/tmp", options: []))
+        container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/var/run", options: []))
+
+        for volume in vessel.volumes {
+            container.mounts.append(Mount.share(source: volume.host, destination: volume.container, options: ["nosuid", "nodev", "noexec"]))
+        }
+        
+        let stdoutWriter = LogWriter(prefix: "STDOUT", continuation: logContinuation)
+        let stderrWriter = LogWriter(prefix: "STDERR", continuation: logContinuation)
+        container.stdout = stdoutWriter
+        container.stderr = stderrWriter
+        
+        try await Task.detached {
+            try await container.create()
+        }.value
+        
+        return (container, stream)
+    }
+
     
     public func start(containerId: String) async throws {
         @Sendable func debugLog(_ msg: String) {
@@ -666,23 +823,82 @@ public final class ContainerDaemon: @unchecked Sendable {
         
         debugLog("start(containerId:) called for \(containerId)")
         
+        // Check if it's an entire Pod
         if let activePod = activePods[containerId] {
-            for (_, container) in activePod.linuxContainers {
-                try await container.start()
+            var newLinuxContainers = activePod.linuxContainers
+            
+            for vc in activePod.pod.containers {
+                // If it's already running in linuxContainers, skip recreating it
+                if newLinuxContainers[vc.name] == nil {
+                    debugLog("Recreating LinuxContainer for pod service: \(vc.name)")
+                    let (linux, _) = try await createLinuxContainer(for: vc, containerId: vc.id)
+                    try await Task.detached { try await linux.start() }.value
+                    newLinuxContainers[vc.name] = linux
+                    
+                    if linux.rosetta {
+                        let binfmtConfig = ContainerizationOCI.Process(
+                            args: ["/bin/sh", "-c", "mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc; echo ':x86_64:M::\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x3e\\x00:\\xff\\xff\\xff\\xff\\xff\\xfe\\xfe\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff\\xff:/run/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register"],
+                            terminal: false
+                        )
+                        if let proc = try? await linux.exec("setup-binfmt", configuration: binfmtConfig) {
+                            try? await proc.start()
+                        }
+                    }
+                    linux.environment = []
+                }
             }
+            
             let pod = activePod.pod
             let updatedPod = VesselPod(id: pod.id, name: pod.name, status: .running, containers: pod.containers, cpus: pod.cpus, memoryGB: pod.memoryGB)
-            activePods[containerId] = ActivePod(pod: updatedPod, linuxContainers: activePod.linuxContainers)
+            activePods[containerId] = ActivePod(pod: updatedPod, linuxContainers: newLinuxContainers)
             savePods()
             return
         }
 
+        // Check if it's a specific container inside a Pod
+        for (podId, activePod) in activePods {
+            if let vcIndex = activePod.pod.containers.firstIndex(where: { $0.id == containerId }) {
+                let vc = activePod.pod.containers[vcIndex]
+                var newLinuxContainers = activePod.linuxContainers
+                
+                if newLinuxContainers[vc.name] == nil {
+                    debugLog("Recreating LinuxContainer for specific pod service: \(vc.name)")
+                    let (linux, _) = try await createLinuxContainer(for: vc, containerId: vc.id)
+                    try await Task.detached { try await linux.start() }.value
+                    newLinuxContainers[vc.name] = linux
+                    
+                    if linux.rosetta {
+                        let binfmtConfig = ContainerizationOCI.Process(
+                            args: ["/bin/sh", "-c", "mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc; echo ':x86_64:M::\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x3e\\x00:\\xff\\xff\\xff\\xff\\xff\\xfe\\xfe\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff\\xff:/run/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register"],
+                            terminal: false
+                        )
+                        if let proc = try? await linux.exec("setup-binfmt", configuration: binfmtConfig) {
+                            try? await proc.start()
+                        }
+                    }
+                    linux.environment = []
+                }
+                
+                var updatedContainers = activePod.pod.containers
+                let updatedVc = VesselContainer(id: vc.id, name: vc.name, subtitle: vc.subtitle, image: vc.image, status: .running, ipAddress: vc.ipAddress, dnsName: vc.dnsName, uptime: vc.uptime, ports: vc.ports, memoryUsage: vc.memoryUsage, volume: vc.volume, exitStatus: nil, rosettaEnabled: vc.rosettaEnabled, networkingEnabled: vc.networkingEnabled, rootfsSize: vc.rootfsSize, cpus: vc.cpus, memoryGB: vc.memoryGB, envVars: vc.envVars, volumes: vc.volumes, portForwards: vc.portForwards, domain: vc.domain, networkName: vc.networkName)
+                updatedContainers[vcIndex] = updatedVc
+                
+                // If all containers in the pod are running, mark the pod as running
+                let podStatus: VesselStatus = .running
+                
+                let updatedPod = VesselPod(id: activePod.pod.id, name: activePod.pod.name, status: podStatus, containers: updatedContainers, cpus: activePod.pod.cpus, memoryGB: activePod.pod.memoryGB)
+                activePods[podId] = ActivePod(pod: updatedPod, linuxContainers: newLinuxContainers)
+                savePods()
+                return
+            }
+        }
+
+        // Fallback: standalone container
         guard let active = activeContainers[containerId] else { throw NSError(domain: "Vessel", code: 404, userInfo: [NSLocalizedDescriptionKey: "Container not found"]) }
         
         let vessel = active.vessel
         
-        // 🛡️ Sentinel: Validate host file paths BEFORE configuration to prevent container escape
-        // We throw an error early instead of silently ignoring invalid mounts which could cause data loss.
+        // Validate host file paths
         let blockedPrefixes = ["/System", "/etc", "/private", "/var", "/bin", "/sbin", "/usr/bin", "/usr/sbin"]
         for volume in vessel.volumes {
             let resolvedHostPath = URL(fileURLWithPath: volume.host).resolvingSymlinksInPath().path
@@ -697,111 +913,15 @@ public final class ContainerDaemon: @unchecked Sendable {
             }
         }
 
-        // Recreate linux container if it doesn't exist
         var linux = active.linux
         var stream = active.logStream
         
         if linux == nil {
-            let network: SimpleNATNetwork? = vessel.networkingEnabled ? SimpleNATNetwork() : nil
-            let kernelPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/vmlinux")
-            var kernelCommandLine = Kernel.CommandLine()
-            kernelCommandLine.kernelArgs.append("ro")
-            let kernel = Kernel(path: kernelPath, platform: .linuxArm, commandline: kernelCommandLine)
-                     let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
-            let contentPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/content")
-            let contentStore = try LocalContentStore(path: contentPath)
-            let store = try ImageStore(path: storePath, contentStore: contentStore)
-            let initPath = storePath.appendingPathComponent("initfs.ext4")
-            let initImage = try await store.getInitImage(reference: "ghcr.io/apple/containerization/vminit:0.33.4")
-            
-            let initfs = try await {
-                do {
-                    return try await initImage.initBlock(at: initPath, for: .linuxArm)
-                } catch let err as ContainerizationError {
-                    guard err.code == .exists else { throw err }
-                    return Containerization.Mount.block(
-                        format: "ext4",
-                        source: initPath.absolutePath(),
-                        destination: "/",
-                        options: ["ro"]
-                    )
-                }
-            }()
-            
-            let vmm = VZVirtualMachineManager(
-                kernel: kernel,
-                initialFilesystem: initfs,
-                bootlog: nil
-            )
-            
-            var logContinuation: AsyncStream<String>.Continuation!
-            stream = AsyncStream<String> { cont in
-                logContinuation = cont
-            }
-            
-            let containerDir = storePath.appendingPathComponent("containers")
-            let fsPath = containerDir.appendingPathComponent("\(containerId)-rootfs.ext4")
-            let rootfs = Containerization.Mount.block(format: "ext4", source: fsPath.path, destination: "/", options: [])
-            
-            let container = LinuxContainer(containerId, rootfs: rootfs, vmm: vmm)
-            container.cpus = vessel.cpus
-            container.memoryInBytes = UInt64(vessel.memoryGB * 1024 * 1024 * 1024)
-            container.rosetta = vessel.rosettaEnabled
-            
-            if var network = network {
-                if let interface = try? network.createInterface(containerId) {
-                    container.interfaces = [interface]
-                    container.dns = Containerization.DNS(nameservers: ["192.168.64.1"])
-                }
-            }
-            
-            let image = try await store.get(reference: normalize(reference: vessel.image))
-            let platform = vessel.rosettaEnabled ? Platform(arch: "amd64", os: "linux") : Platform(arch: "arm64", os: "linux", variant: "v8")
-            let imageConfig = try await image.config(for: platform).config
-            
-            if let config = imageConfig {
-                let cwd = config.workingDir ?? "/"
-                let env = config.env ?? []
-                let args = (config.entrypoint ?? []) + (config.cmd ?? [])
-                
-                container.workingDirectory = cwd
-                var allEnvs = env
-                let resolvedServiceEnv = try resolveEnvironment(vessel.envVars)
-                allEnvs.append(contentsOf: resolvedServiceEnv)
-                container.environment = allEnvs
-                container.arguments = args
-                
-                if let rawString = config.user {
-                    container.user = ContainerizationOCI.User(username: rawString)
-                }
-            } else {
-                let resolvedServiceEnv = try resolveEnvironment(vessel.envVars)
-                container.environment.append(contentsOf: resolvedServiceEnv)
-            }
-            
-            // 🛡️ Sentinel: Borrow 'hidepid=2' from Kicksecure to harden the container environment.
-            // Mounting /proc with hidepid=2 prevents users within the container from seeing processes
-            // owned by other users, mitigating information disclosure.
-            container.mounts.append(Mount.any(type: "proc", source: "proc", destination: "/proc", options: ["nosuid", "noexec", "nodev"]))
-            container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/tmp", options: []))
-            container.mounts.append(Mount.any(type: "tmpfs", source: "tmpfs", destination: "/var/run", options: []))
-
-            for volume in vessel.volumes {
-                container.mounts.append(Mount.share(source: volume.host, destination: volume.container, options: ["nosuid", "nodev", "noexec"]))
-            }
-            
-            let stdoutWriter = LogWriter(prefix: "STDOUT", continuation: logContinuation)
-            let stderrWriter = LogWriter(prefix: "STDERR", continuation: logContinuation)
-            container.stdout = stdoutWriter
-            container.stderr = stderrWriter
-            debugLog("Calling container.create()...")
-            try await Task.detached {
-                try await container.create()
-            }.value
-            linux = container
+            let (newLinux, newStream) = try await createLinuxContainer(for: vessel, containerId: containerId)
+            linux = newLinux
+            stream = newStream
         }
         
-        // Security: Avoid force unwrap to prevent application crash if the container fails to initialize.
         guard let linuxContainer = linux else {
             throw NSError(domain: "Vessel", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to initialize Linux container"])
         }
@@ -813,7 +933,6 @@ public final class ContainerDaemon: @unchecked Sendable {
         }.value
         
         if linuxContainer.rosetta {
-            // Manually run binfmt_misc registration in guest VM
             let binfmtConfig = ContainerizationOCI.Process(
                 args: ["/bin/sh", "-c", "mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc; echo ':x86_64:M::\\x7fELF\\x02\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x3e\\x00:\\xff\\xff\\xff\\xff\\xff\\xfe\\xfe\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff\\xff:/run/rosetta/rosetta:CF' > /proc/sys/fs/binfmt_misc/register"],
                 terminal: false
@@ -823,7 +942,6 @@ public final class ContainerDaemon: @unchecked Sendable {
             }
         }
         
-        // Zero out environment to prevent secret leaking
         linuxContainer.environment = []
 
         var activeForwarders: [PortForwarder] = []
@@ -854,6 +972,20 @@ public final class ContainerDaemon: @unchecked Sendable {
         let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .running, ipAddress: vessel.networkingEnabled ? "127.0.0.1" : nil, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: nil, rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
         activeContainers[containerId] = ActiveContainer(vessel: updated, linux: linux, logStream: stream, portForwarders: activeForwarders, netService: netService)
         saveContainers()
+        
+        Task { [weak self] in
+            guard let self = self else { return }
+            let exitCode = try? await linuxContainer.wait()
+            try? await linuxContainer.stop()
+            if var active = self.activeContainers[containerId] {
+                let old = active.vessel
+                let statusStr = exitCode != nil ? String(exitCode!) : nil
+                let exited = VesselContainer(id: old.id, name: old.name, subtitle: old.subtitle, image: old.image, status: .stopped, ipAddress: old.ipAddress, dnsName: old.dnsName, uptime: old.uptime, ports: old.ports, memoryUsage: old.memoryUsage, volume: old.volume, exitStatus: statusStr, rosettaEnabled: old.rosettaEnabled, networkingEnabled: old.networkingEnabled, rootfsSize: old.rootfsSize, cpus: old.cpus, memoryGB: old.memoryGB, envVars: old.envVars, volumes: old.volumes, portForwards: old.portForwards, domain: old.domain, networkName: old.networkName)
+                active.vessel = exited
+                self.activeContainers[containerId] = active
+                self.saveContainers()
+            }
+        }
     }
     
     public func listFiles(in path: String, containerId: String) async throws -> String {
@@ -890,8 +1022,7 @@ public final class ContainerDaemon: @unchecked Sendable {
     }
 
     public func exec(containerId: String, args: [String], stdout: Containerization.Writer? = nil, stderr: Containerization.Writer? = nil, stdin: Containerization.ReaderStream? = nil) async throws -> LinuxProcess {
-        guard let active = activeContainers[containerId] else { throw NSError(domain: "Vessel", code: 404, userInfo: [NSLocalizedDescriptionKey: "Container not found"]) }
-        guard let linux = active.linux else { throw NSError(domain: "Vessel", code: 400, userInfo: [NSLocalizedDescriptionKey: "Container not running"]) }
+        guard let linux = resolveLinuxContainer(id: containerId) else { throw NSError(domain: "Vessel", code: 400, userInfo: [NSLocalizedDescriptionKey: "Container not running or not found"]) }
 
         let config = ContainerizationOCI.Process(
             args: args,
@@ -909,9 +1040,7 @@ public final class ContainerDaemon: @unchecked Sendable {
     }
 
     public func execShell(containerId: String, stdin: Containerization.ReaderStream, stdout: Containerization.Writer) async throws -> LinuxProcess {
-        guard let active = activeContainers[containerId] else { throw NSError(domain: "Vessel", code: 404, userInfo: [NSLocalizedDescriptionKey: "Container not found"]) }
-        
-        guard let linux = active.linux else { throw NSError(domain: "Vessel", code: 400, userInfo: [NSLocalizedDescriptionKey: "Container not running"]) }
+        guard let linux = resolveLinuxContainer(id: containerId) else { throw NSError(domain: "Vessel", code: 400, userInfo: [NSLocalizedDescriptionKey: "Container not running or not found"]) }
         
         let config = ContainerizationOCI.Process(
             args: ["/bin/sh", "-l"],
@@ -929,11 +1058,8 @@ public final class ContainerDaemon: @unchecked Sendable {
     }
     
     public func startStatsStream(containerId: String) async throws -> AsyncStream<StatsModel> {
-        guard let active = activeContainers[containerId] else {
-            throw NSError(domain: "Vessel", code: 404, userInfo: [NSLocalizedDescriptionKey: "Container not active"])
-        }
-        guard let linux = active.linux else {
-            throw NSError(domain: "Vessel", code: 400, userInfo: [NSLocalizedDescriptionKey: "Container not running"])
+        guard let linux = resolveLinuxContainer(id: containerId) else {
+            throw NSError(domain: "Vessel", code: 400, userInfo: [NSLocalizedDescriptionKey: "Container not running or not found"])
         }
         
         let (stream, continuation) = AsyncStream<StatsModel>.makeStream()
@@ -948,6 +1074,13 @@ public final class ContainerDaemon: @unchecked Sendable {
         let execId = "stats-\(UUID().uuidString)"
         let process = try await linux.exec(execId, configuration: config, stdout: readerWriter)
         try await process.start()
+        
+        continuation.onTermination = { @Sendable _ in
+            Task {
+                try? await process.kill(9)
+            }
+        }
+        
         return stream
     }
 
@@ -965,9 +1098,18 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
         let str = String(decoding: data, as: UTF8.self)
         buffer += str
         
-        while let endRange = buffer.range(of: "---END---\n") {
+        while let endRange = buffer.range(of: "---END---") {
             let chunk = String(buffer[..<endRange.lowerBound])
-            buffer.removeSubrange(..<endRange.upperBound)
+            
+            var upper = endRange.upperBound
+            if upper < buffer.endIndex, buffer[upper] == "\r" {
+                upper = buffer.index(after: upper)
+            }
+            if upper < buffer.endIndex, buffer[upper] == "\n" {
+                upper = buffer.index(after: upper)
+            }
+            
+            buffer.removeSubrange(..<upper)
             
             parser.parse(output: chunk, currentModel: &currentModel)
             continuation.yield(currentModel)
@@ -1079,32 +1221,64 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
                 }
             }
             let pod = activePod.pod
-            let updatedPod = VesselPod(id: pod.id, name: pod.name, status: .stopped, containers: pod.containers, cpus: pod.cpus, memoryGB: pod.memoryGB)
+            let updatedPod = VesselPod(id: pod.id, name: pod.name, status: .stopped, containers: pod.containers.map {
+                let vc = $0
+                return VesselContainer(id: vc.id, name: vc.name, subtitle: vc.subtitle, image: vc.image, status: .stopped, ipAddress: vc.ipAddress, dnsName: vc.dnsName, uptime: vc.uptime, ports: vc.ports, memoryUsage: vc.memoryUsage, volume: vc.volume, exitStatus: vc.exitStatus, rosettaEnabled: vc.rosettaEnabled, networkingEnabled: vc.networkingEnabled, rootfsSize: vc.rootfsSize, cpus: vc.cpus, memoryGB: vc.memoryGB, envVars: vc.envVars, volumes: vc.volumes, portForwards: vc.portForwards, domain: vc.domain, networkName: vc.networkName)
+            }, cpus: pod.cpus, memoryGB: pod.memoryGB)
             activePods[containerId] = ActivePod(pod: updatedPod, linuxContainers: [:])
             savePods()
             return
         }
 
-        guard let active = activeContainers[containerId], let linux = active.linux else { return }
+        if let active = activeContainers[containerId] {
+            guard let linux = active.linux else { return }
 
-        for pf in active.portForwarders {
-            pf.stop()
+            for pf in active.portForwarders {
+                pf.stop()
+            }
+
+            active.netService?.stop()
+
+            if force {
+                try? await linux.stop()
+            } else {
+                try await linux.stop()
+            }
+
+            let vessel = active.vessel
+            let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: force ? "Force Stopped by user" : "Stopped by user", rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
+            activeContainers[containerId] = ActiveContainer(vessel: updated, linux: nil, logStream: nil, portForwarders: [])
+            saveContainers()
+            return
         }
-
-        active.netService?.stop()
-
-        if force {
-            // Some containers might be stubborn, stop them forcefully. The api currently provides stop()
-            // In a real framework extension, a kill() signal would be sent. Here we call stop and release resources.
-            try? await linux.stop()
-        } else {
-            try await linux.stop()
+        
+        // Check if it's a container inside a pod
+        for (podId, activePod) in activePods {
+            if let vcIndex = activePod.pod.containers.firstIndex(where: { $0.id == containerId }) {
+                let vc = activePod.pod.containers[vcIndex]
+                let serviceName = vc.name
+                
+                if let linux = activePod.linuxContainers[serviceName] {
+                    if force {
+                        try? await linux.stop()
+                    } else {
+                        try await linux.stop()
+                    }
+                }
+                
+                var newContainers = activePod.pod.containers
+                let updatedVc = VesselContainer(id: vc.id, name: vc.name, subtitle: vc.subtitle, image: vc.image, status: .stopped, ipAddress: vc.ipAddress, dnsName: vc.dnsName, uptime: vc.uptime, ports: vc.ports, memoryUsage: vc.memoryUsage, volume: vc.volume, exitStatus: force ? "Force Stopped by user" : "Stopped by user", rosettaEnabled: vc.rosettaEnabled, networkingEnabled: vc.networkingEnabled, rootfsSize: vc.rootfsSize, cpus: vc.cpus, memoryGB: vc.memoryGB, envVars: vc.envVars, volumes: vc.volumes, portForwards: vc.portForwards, domain: vc.domain, networkName: vc.networkName)
+                newContainers[vcIndex] = updatedVc
+                
+                var newLinuxContainers = activePod.linuxContainers
+                newLinuxContainers.removeValue(forKey: serviceName)
+                
+                let updatedPod = VesselPod(id: activePod.pod.id, name: activePod.pod.name, status: activePod.pod.status, containers: newContainers, cpus: activePod.pod.cpus, memoryGB: activePod.pod.memoryGB)
+                activePods[podId] = ActivePod(pod: updatedPod, linuxContainers: newLinuxContainers)
+                savePods()
+                return
+            }
         }
-
-        let vessel = active.vessel
-        let updated = VesselContainer(id: vessel.id, name: vessel.name, subtitle: vessel.subtitle, image: vessel.image, status: .stopped, ipAddress: vessel.ipAddress, dnsName: vessel.dnsName, uptime: vessel.uptime, ports: vessel.ports, memoryUsage: vessel.memoryUsage, volume: vessel.volume, exitStatus: force ? "Force Stopped by user" : "Stopped by user", rosettaEnabled: vessel.rosettaEnabled, networkingEnabled: vessel.networkingEnabled, rootfsSize: vessel.rootfsSize, cpus: vessel.cpus, memoryGB: vessel.memoryGB, envVars: vessel.envVars, volumes: vessel.volumes, portForwards: vessel.portForwards, domain: vessel.domain, networkName: vessel.networkName)
-        activeContainers[containerId] = ActiveContainer(vessel: updated, linux: nil, logStream: nil, portForwarders: [])
-        saveContainers()
     }
     
     public func delete(containerId: String) async throws {
@@ -1129,20 +1303,52 @@ class StatsProcessReaderWriter: Containerization.Writer, @unchecked Sendable {
             if let linux = active.linux {
                 try? await linux.stop()
             }
+            let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
+            let containerDir = storePath.appendingPathComponent("containers")
+            let fsPath = containerDir.appendingPathComponent("\(containerId)-rootfs.ext4")
+            try? FileManager.default.removeItem(at: fsPath)
+            activeContainers.removeValue(forKey: containerId)
+            saveContainers()
+            return
         }
         
-        let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
-        let containerDir = storePath.appendingPathComponent("containers")
-        let fsPath = containerDir.appendingPathComponent("\(containerId)-rootfs.ext4")
-        try? FileManager.default.removeItem(at: fsPath)
-        activeContainers.removeValue(forKey: containerId)
-        saveContainers()
+        // Check if it's a container inside a pod
+        for (podId, activePod) in activePods {
+            if let vcIndex = activePod.pod.containers.firstIndex(where: { $0.id == containerId }) {
+                let vc = activePod.pod.containers[vcIndex]
+                let serviceName = vc.name
+                
+                if let linux = activePod.linuxContainers[serviceName] {
+                    try? await linux.stop()
+                }
+                
+                var newContainers = activePod.pod.containers
+                newContainers.remove(at: vcIndex)
+                
+                var newLinuxContainers = activePod.linuxContainers
+                newLinuxContainers.removeValue(forKey: serviceName)
+                
+                let updatedPod = VesselPod(id: activePod.pod.id, name: activePod.pod.name, status: activePod.pod.status, containers: newContainers, cpus: activePod.pod.cpus, memoryGB: activePod.pod.memoryGB)
+                activePods[podId] = ActivePod(pod: updatedPod, linuxContainers: newLinuxContainers)
+                savePods()
+                
+                let storePath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".vessel/images")
+                let containerDir = storePath.appendingPathComponent("containers")
+                let fsPath = containerDir.appendingPathComponent("\(containerId)-rootfs.ext4")
+                try? FileManager.default.removeItem(at: fsPath)
+                return
+            }
+        }
     }
     
     public func streamLogs(for id: String) -> AsyncStream<String> {
         if let active = activeContainers[id], let stream = active.logStream {
             return stream
         }
+        
+        // We don't have log streams individually bound to pod containers in this mock architecture
+        // but we can return a silent stream so the client doesn't hang.
+
         
         return AsyncStream { continuation in
             continuation.yield("No active stream found for container \(id)")
